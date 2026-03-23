@@ -28,7 +28,7 @@ Career fair booth assignment tool. Import companies from a spreadsheet, drag the
    npx prisma studio
    ```
 
-- When you run this, Prisma compares your schema to the database and generates a .sql file in a timestamped folder inside the prisma/migrations folder. This folder then holds SQL files that show exactly how the database changed over time, that way a teammate can pull your code and run npx prisma migrate dev to get their local database updated with the exact same SQL steps you took. Note**: This may fail because it tries to create a shadow database using the SQL scripts in migrations folders to compare to actual database.
+- When you run this, Prisma compares your schema to the database and generates a .sql file in a timestamped folder inside the prisma/migrations folder. This folder then holds SQL files that show exactly how the database changed over time, that way a teammate can pull your code and run npx prisma migrate dev to get their local database updated with the exact same SQL steps you took. **Note: This may fail because it tries to create a shadow database using the SQL scripts in migrations folders to compare to actual database.**
    ```bash
    npx prisma migrate dev --name {change name}
    ```
