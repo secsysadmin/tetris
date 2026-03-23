@@ -39,9 +39,9 @@ Career fair booth assignment tool. Import companies from a spreadsheet, drag the
    ```
 
 - Syncs your schema.prisma to match the actual database.
-```bash
-npx prisma db pull
-```
+   ```bash
+   npx prisma db pull
+   ```
 
 ## Tech Stack
 
