@@ -32,6 +32,7 @@ model Company {
   days        Day[]
   sponsorship Sponsorship       @default(BASIC)
   hasQueue    Boolean           @default(false)
+  industry    Industry         @default(OTHER)
   draftId     String
   draft       Draft             @relation(fields: [draftId], references: [id], onDelete: Cascade)
   assignments BoothAssignment[]
@@ -60,4 +61,16 @@ enum Sponsorship {
 enum Day {
   WEDNESDAY
   THURSDAY
+}
+
+enum Industry {
+  AEROSPACE
+  MECHANICAL
+  ENERGY
+  CHEMICALS
+  OIL
+  CIVIL
+  TECH
+  SEMICONDUCTORS
+  OTHER
 }
