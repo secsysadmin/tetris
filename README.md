@@ -23,28 +23,25 @@ Career fair booth assignment tool. Import companies from a spreadsheet, drag the
 
 ## Useful Prisma Commands
 
-```bash
-npx prisma studio
-```
-Opens a browser tab where you can see all your tables, add/delete rows, and filter data without writing any SQL.
+- Opens a browser tab where you can see all your tables, add/delete rows, and filter data without writing any SQL.
+   ```bash
+   npx prisma studio
+   ```
 
+- When you run this, Prisma compares your schema to the database and generates a .sql file in a prisma/migrations folder. This folder then holds SQL files that show exactly how the database changed over time, that way a teammate can pull your code and run npx prisma migrate dev to get their local database updated with the exact same SQL steps you took.
+   ```bash
+   npx prisma migrate dev --name {change name}
+   ```
 
-```bash
-npx prisma migrate dev --name {change name}
-```
-When you run this, Prisma compares your schema to the database and generates a .sql file in a prisma/migrations folder. This folder then holds SQL files that show exactly how the database changed over time, that way a teammate can pull your code and run npx prisma migrate dev to get their local database updated with the exact same SQL steps you took.
+- Use this for development/prototyping. It syncs your schema with the database immediately, but does not keep track of history.
+   ```bash
+   npx prisma db push
+   ```
 
-
-```bash
-npx prisma db push
-```
-Use this for development/prototyping. It syncs your schema with the database immediately, but does not keep track of history.
-
-
+- Syncs your schema.prisma to match the actual database.
 ```bash
 npx prisma db pull
 ```
-Syncs your schema.prisma to match the actual database.
 
 ## Tech Stack
 
