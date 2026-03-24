@@ -1,4 +1,4 @@
-# Booth Map
+# Tetris
 
 Career fair booth assignment tool. Import companies from a spreadsheet, drag them onto an interactive floor map, and export finalized assignments.
 
