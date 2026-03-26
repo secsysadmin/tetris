@@ -1,5 +1,15 @@
 export type Day = "WEDNESDAY" | "THURSDAY"
 export type Sponsorship = "MAROON" | "DIAMOND" | "GOLD" | "SILVER" | "BASIC"
+export type Industry = 
+  "AEROSPACE" |
+  "MECHANICAL" |
+  "ENERGY" |
+  "CHEMICALS" |
+  "OIL" |
+  "CIVIL" |
+  "TECH" |
+  "SEMICONDUCTORS" |
+  "OTHER"
 
 export interface Company {
   id: string
@@ -7,6 +17,7 @@ export interface Company {
   days: Day[]
   sponsorship: Sponsorship
   hasQueue: boolean
+  industry: Industry
   draftId: string
 }
 
