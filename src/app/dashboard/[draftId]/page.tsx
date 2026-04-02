@@ -24,6 +24,7 @@ const BoothMap = dynamic(
 import { ArrowLeft, Download, Upload } from "lucide-react"
 import type { Day } from "@/types"
 import { toast } from "sonner"
+import { AutoPlaceConfirmationDialog } from "@/components/sidebar/auto-complete-confirmation"
 
 export default function EditorPage() {
   const params = useParams()
@@ -33,6 +34,7 @@ export default function EditorPage() {
   const { apiFetch } = useApi()
   const [draftName, setDraftName] = useState("")
   const [importOpen, setImportOpen] = useState(false)
+  const [autoCompleteConfirmOpen, setAutoCompleteConfirmOpen] = useState(false)
 
   const {
     activeDay,
@@ -124,6 +126,14 @@ export default function EditorPage() {
           </Tabs>
 
           <Button
+            variant="default"
+            size="sm"
+            onClick={() => setAutoCompleteConfirmOpen(true)}
+          >
+            Auto-Place
+          </Button>
+
+          <Button
             variant="outline"
             size="sm"
             onClick={() => setImportOpen(true)}
@@ -170,6 +180,15 @@ export default function EditorPage() {
         draftId={draftId}
         onImportComplete={loadDraft}
       />
+
+      {/* Auto-complete confirmation dialog */}
+      <AutoPlaceConfirmationDialog
+        open={autoCompleteConfirmOpen}
+        onOpenChange={setAutoCompleteConfirmOpen}
+        draftId={draftId}
+        activeDay={activeDay}
+       />
+      
     </div>
   )
 }

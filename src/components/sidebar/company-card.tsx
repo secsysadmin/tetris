@@ -142,6 +142,7 @@ export function CompanyCard({ company, isAssigned }: CompanyCardProps) {
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+
             <DropdownMenuLabel className="text-xs">Sponsorship</DropdownMenuLabel>
             {SPONSORSHIP_OPTIONS.map((s) => (
               <DropdownMenuItem
@@ -158,6 +159,8 @@ export function CompanyCard({ company, isAssigned }: CompanyCardProps) {
               </DropdownMenuItem>
             ))}
             <DropdownMenuSeparator />
+
+
             <DropdownMenuLabel className="text-xs">Days</DropdownMenuLabel>
             <DropdownMenuItem
               className="text-xs"
@@ -178,6 +181,7 @@ export function CompanyCard({ company, isAssigned }: CompanyCardProps) {
               Both{isBothDays && " ✓"}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
+
             <DropdownMenuCheckboxItem
               className="text-xs"
               checked={company.hasQueue}
@@ -185,6 +189,16 @@ export function CompanyCard({ company, isAssigned }: CompanyCardProps) {
             >
               Company Queue
             </DropdownMenuCheckboxItem>
+            <DropdownMenuSeparator />
+
+            <DropdownMenuLabel className="text-xs">Industry</DropdownMenuLabel>
+            <DropdownMenuItem
+              className="text-xs"
+              onClick={() => toast.error("Not implemented yet")}
+            >
+              {company.industry}
+            </DropdownMenuItem>
+
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
