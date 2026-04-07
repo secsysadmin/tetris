@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { getAuthUser } from "@/lib/auth"
 import * as XLSX from "xlsx"
-import type { Day, Sponsorship } from "@/types"
+import type { Day, Sponsorship, Industry } from "@/types"
 
 const VALID_SPONSORSHIPS: Sponsorship[] = [
   "MAROON",
@@ -11,6 +11,19 @@ const VALID_SPONSORSHIPS: Sponsorship[] = [
   "SILVER",
   "BASIC",
 ]
+
+const VALID_INDUSTRIES: Industry[] = [
+  "AEROSPACE",
+  "MECHANICAL",
+  "ENERGY",
+  "CHEMICALS",
+  "OIL",
+  "CIVIL",
+  "TECH", 
+  "SEMICONDUCTORS",
+  "OTHER",
+]
+
 
 /**
  * Parse the sponsorship column which contains tier + day info.
@@ -45,6 +58,18 @@ function parseSponsorshipColumn(value: string): { sponsorship: Sponsorship; days
   return { sponsorship, days: ["WEDNESDAY", "THURSDAY"] }
 }
 
+function parseIndustry(value: string): Industry {
+  const v = value.trim()
+  const industryRaw = v.toUpperCase()
+
+  console.log(`[import] Parsing industry: "${value}" → "${industryRaw}"`)
+  if (VALID_INDUSTRIES.includes(industryRaw as Industry)) {
+    return industryRaw as Industry
+  }
+
+  return "OTHER" as Industry
+}
+
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -72,13 +97,14 @@ export async function POST(
   const buffer = Buffer.from(await file.arrayBuffer())
   const workbook = XLSX.read(buffer, { type: "buffer" })
   const sheet = workbook.Sheets[workbook.SheetNames[0]]
+
   // Parse as array-of-arrays to support headerless CSVs (positional columns)
   const rows = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1 })
 
   console.log("[import] Total rows:", rows.length)
 
   const errors: string[] = []
-  const companies: { name: string; days: Day[]; sponsorship: Sponsorship }[] =
+  const companies: { name: string; days: Day[]; sponsorship: Sponsorship; industry: Industry }[] =
     []
 
   // Detect if first row is a header (check if col B looks like a sponsorship value)
@@ -111,8 +137,11 @@ export async function POST(
       continue
     }
 
-    console.log(`[import] Row ${rowNum}: ${name} → ${parsed.sponsorship} [${parsed.days.join(", ")}]`)
-    companies.push({ name, days: parsed.days, sponsorship: parsed.sponsorship })
+    const industryRaw = String(row[2] || "").trim().toUpperCase()
+    const industryValue = parseIndustry(industryRaw)
+
+    console.log(`[import] Row ${rowNum}: ${name} → ${parsed.sponsorship} [${parsed.days.join(", ")}], Industry: ${industryValue}`)
+    companies.push({ name, days: parsed.days, sponsorship: parsed.sponsorship, industry: industryValue as Industry })
   }
 
   console.log("[import] Parsed", companies.length, "companies,", errors.length, "errors")
@@ -129,7 +158,7 @@ export async function POST(
     if (existing) {
       await prisma.company.update({
         where: { id: existing.id },
-        data: { days: c.days, sponsorship: c.sponsorship },
+        data: { days: c.days, sponsorship: c.sponsorship, industry: c.industry },
       })
       updated++
     } else {

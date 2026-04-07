@@ -19,6 +19,7 @@ interface ImportDialogProps {
   onImportComplete: () => void
 }
 
+// Handles file upload for company import, sends to /api/drafts/[id]/import, and displays results
 export function ImportDialog({
   open,
   onOpenChange,
