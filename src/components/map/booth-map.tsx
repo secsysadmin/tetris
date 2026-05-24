@@ -670,6 +670,18 @@ function BoothContextMenu({
 
       <div className="-mx-1 my-1 h-px bg-border" />
 
+      <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
+        Industry
+      </div>
+
+      <button
+        className="flex w-full items-center rounded-sm px-2 py-1.5 text-xs hover:bg-accent hover:text-accent-foreground"
+      >
+        {company.industry}
+      </button>
+
+      <div className="-mx-1 my-1 h-px bg-border" />
+
       <button
         onClick={handleReposition}
         className="flex w-full items-center rounded-sm px-2 py-1.5 text-xs hover:bg-accent hover:text-accent-foreground"
