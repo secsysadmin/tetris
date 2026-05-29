@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useRef } from "react"
-import { useApi } from "@/hooks/use-api"
+import { useState } from "react"
+import { useMapStore } from "@/store/map-store"
 import {
   Dialog,
   DialogContent,
@@ -10,22 +10,22 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Day } from "@/types"
+import { toast } from "sonner"
 
 interface AutoPlaceConfirmationProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  draftId: string
   activeDay: Day
 }
 
-// Handles file upload for company import, sends to /api/drafts/[id]/import, and displays results
+// Handles dialog for confirming auto-placement of all companies for the active day. Called from the "Auto-Place" button in the top bar.
 export function AutoPlaceConfirmationDialog({
   open,
   onOpenChange,
-  draftId,
   activeDay,
 }: AutoPlaceConfirmationProps) {
-  const { apiFetch } = useApi()
+  const { autoPlaceCompanies } = useMapStore()
+  const [isPlacing, setIsPlacing] = useState(false)
   const dayName = activeDay === "WEDNESDAY" ? "Wednesday" : "Thursday"
 
 
@@ -50,10 +50,24 @@ export function AutoPlaceConfirmationDialog({
               variant="default"
               className="bg-red-600 hover:bg-red-700 text-white"
               onClick={async () => {
-                console.log("Confirmed!")
+                setIsPlacing(true)
+                try {
+                  const result = await autoPlaceCompanies(activeDay)
+                  if (result.placedCount > 0) {
+                    toast.success(`Auto-placed ${result.placedCount} companies`)
+                  } else {
+                    toast.info("No available booths for auto-place")
+                  }
+                  onOpenChange(false)
+                } catch {
+                  // Store already showed error toast
+                } finally {
+                  setIsPlacing(false)
+                }
               }}
+              disabled={isPlacing}
             >
-              Confirm
+              {isPlacing ? "Placing..." : "Confirm"}
             </Button>
 
           </div>

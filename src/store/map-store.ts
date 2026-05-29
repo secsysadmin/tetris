@@ -47,6 +47,12 @@ interface MapStore {
   unassignCompany: (companyId: string) => Promise<void>
   unassignAll: () => Promise<void>
   moveCompany: (assignmentId: string, newBoothIds?: string[], newDay?: Day | null) => Promise<void>
+  autoPlaceCompanies: (day: Day) => Promise<{
+    created: BoothAssignment[]
+    placedCount: number
+    unassignedCount: number
+    skippedCount: number
+  }>
 
   // UI actions
   setActiveDay: (day: Day) => void
@@ -261,6 +267,42 @@ export const useMapStore = create<MapStore>((set, get) => ({
     } catch (e) {
       set({ assignments: snapshot })
       toast.error(e instanceof Error ? e.message : "Failed to move company")
+      throw e
+    }
+  },
+
+  autoPlaceCompanies: async (day) => {
+    const { draftId } = get()
+    if (!draftId) {
+      return { created: [], placedCount: 0, unassignedCount: 0, skippedCount: 0 }
+    }
+
+    try {
+      const res = await authFetch("/api/assignments/auto-place", {
+        method: "POST",
+        body: JSON.stringify({ draftId, day }),
+      })
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || "Failed to auto-place companies")
+      }
+
+      const data = await res.json()
+      set((state) => {
+        const existingIds = new Set(state.assignments.map((a) => a.id))
+        const created = (data.created || []).filter(
+          (a: BoothAssignment) => !existingIds.has(a.id)
+        )
+        return {
+          assignments: [...state.assignments, ...created],
+          selectedCompany: null,
+        }
+      })
+
+      return data
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to auto-place companies")
       throw e
     }
   },

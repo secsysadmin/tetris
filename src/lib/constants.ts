@@ -30,6 +30,9 @@ export const SPONSORSHIP_TEXT_COLOR: Record<Sponsorship, string> = {
   BASIC: "#2a2a2a",
 }
 
+// Industry configuration and text colors: TODO
+// Do similar to sponsorships, but with a color palette and label for each industry
+
 // Row letters from left (Q) to right (A) as rendered on screen
 export const ALL_ROWS = ["Q", "P", "O", "N", "M", "L", "K", "J", "I", "H", "G", "F", "E", "D", "C", "B", "A"] as const
 export const EDGE_ROWS = new Set(["A", "Q"])

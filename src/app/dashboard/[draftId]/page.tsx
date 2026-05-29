@@ -185,7 +185,6 @@ export default function EditorPage() {
       <AutoPlaceConfirmationDialog
         open={autoCompleteConfirmOpen}
         onOpenChange={setAutoCompleteConfirmOpen}
-        draftId={draftId}
         activeDay={activeDay}
        />
       
