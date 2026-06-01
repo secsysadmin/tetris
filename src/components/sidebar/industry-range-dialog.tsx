@@ -284,9 +284,13 @@ export function IndustryRangeDialog({
         </DialogHeader>
 
         <DialogDescription>
-            <b><u>Booth range:</u></b> A range of booths within the same row (e.g. A-1 to A-4)<br />
-            <b><u>Booth list:</u></b> A comma-separated list of booths (e.g. A-1, A-2, B-4)<br />
-            <b><u>Rows:</u></b> A range of rows (e.g. A to D for use all booths in rows A and D, A to A for use all booths in row A)<br />
+            <b>Note:</b> Avoid using ranges that span multiple rows like A-14 to B-15. Instead, define separate ranges. <br/>
+            <b>Example:</b> For A-1 to B-23, define one range of "Rows" as A to A and another range of "Booth range" as B-1 to B-23.<br/> <br/>
+            
+            The following formats are accepted for ranges:<br />
+            - <b><u>Booth range:</u></b> A range of booths spanning the same row (e.g. A-1 to A-4)<br />
+            - <b><u>Booth list:</u></b> A comma-separated list of booths (e.g. A-1, A-15, B-4)<br />
+            - <b><u>Rows:</u></b> A range of rows (e.g. A to D to use all booths in rows A through D inclusive, A to A to use all booths in row A)<br />
 
         </DialogDescription>
 
