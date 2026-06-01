@@ -40,7 +40,9 @@ export function AutoPlaceConfirmationDialog({
         <DialogDescription>
           <br/>
           <b><i>Are you sure you want to auto-place all companies for <u>{dayName}</u></i>? </b> <br/> <br/>
-          This will attempt to place all unassigned companies for {dayName} into available booths. It will not move any already assigned companies. This action cannot be undone, but you can always make manual adjustments afterward.
+          This will attempt to place all unassigned companies for {dayName} into available booths. It will not move any already assigned companies. This action cannot be undone, but you can always make manual adjustments afterward. <br/> <br/>
+    
+          This process places companies in order of sponsorship level (Maroon first, Diamond second, etc) and then alphabetically, so if there are not enough booths for all companies, some lower priority ones may not get placed. Additionally, it places companies from the top of a row to bottom as viewed on the map (e.g. 16 to 30 then 15 to 1).
         </DialogDescription>
 
         <Button

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
+import { Prisma } from "@prisma/client"
 import { getAuthUser } from "@/lib/auth"
 import { getBoothById } from "@/lib/booth-geometry"
 import { ALL_ROWS } from "@/lib/constants"
@@ -144,7 +145,7 @@ export async function PUT(
 
   const { id } = await params
   const body = await req.json().catch(() => ({}))
-  const data: { name?: string; industryRanges?: IndustryRangeConfig | null } = {}
+  const data: { name?: string; industryRanges?: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput } = {}
 
   if (typeof body.name === "string") {
     data.name = body.name
@@ -155,7 +156,11 @@ export async function PUT(
     if (normalized.error) {
       return NextResponse.json({ error: normalized.error }, { status: 400 })
     }
-    data.industryRanges = normalized.value ?? null
+    if (normalized.value === null) {
+      data.industryRanges = Prisma.JsonNull
+    } else if (normalized.value !== undefined) {
+      data.industryRanges = normalized.value as Prisma.InputJsonValue
+    }
   }
 
   if (Object.keys(data).length === 0) {

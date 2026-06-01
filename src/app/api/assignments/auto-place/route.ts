@@ -64,7 +64,7 @@ function normalizeBoothId(raw: string): string | null {
 
 function expandIndustryRanges(rawRanges: unknown): Map<Industry, Set<string>> {
   const layout = getBoothLayout()
-  const rowIndex = new Map(ALL_ROWS.map((row, idx) => [row, idx]))
+  const rowIndex = new Map<string, number>(ALL_ROWS.map((row, idx) => [row, idx]))
   const rowNumbers = new Map<string, number[]>()
   for (const booth of layout) {
     const list = rowNumbers.get(booth.row) ?? []
@@ -88,7 +88,7 @@ function expandIndustryRanges(rawRanges: unknown): Map<Industry, Set<string>> {
         if (startIdx === undefined || endIdx === undefined) continue
         const minIdx = Math.min(startIdx, endIdx)
         const maxIdx = Math.max(startIdx, endIdx)
-        const allowedRows = new Set(ALL_ROWS.slice(minIdx, maxIdx + 1))
+        const allowedRows = new Set<string>(ALL_ROWS.slice(minIdx, maxIdx + 1))
         for (const booth of layout) {
           if (allowedRows.has(booth.row)) allowed.add(booth.id)
         }
