@@ -26,7 +26,7 @@ interface MapStore {
   selectedCompany: string | null
   repositioning: boolean  // true when a selected company is being moved
   tooltip: { x: number; y: number; boothId: string; companyName: string; sponsorship: string; boothIds: string[] } | null
-  contextMenu: { x: number; y: number; companyId: string; assignmentId: string } | null
+  contextMenu: { x: number; y: number; boothId: string; companyId: string | null; assignmentId: string | null } | null
 
   // Export
   exportMapFn: (() => void) | null
@@ -47,6 +47,14 @@ interface MapStore {
   unassignCompany: (companyId: string) => Promise<void>
   unassignAll: () => Promise<void>
   moveCompany: (assignmentId: string, newBoothIds?: string[], newDay?: Day | null) => Promise<void>
+  autoPlaceCompanies: (day: Day) => Promise<{
+    created: BoothAssignment[]
+    placedCount: number
+    unassignedCount: number
+    skippedCount: number
+  }>
+  blockBooth: (boothId: string, day: Day) => Promise<void>
+  unblockBooth: (assignmentId: string) => Promise<void>
 
   // UI actions
   setActiveDay: (day: Day) => void
@@ -202,12 +210,17 @@ export const useMapStore = create<MapStore>((set, get) => ({
   },
 
   unassignAll: async () => {
-    const { draftId, assignments } = get()
+    const { draftId, assignments, companies } = get()
     if (!draftId || assignments.length === 0) return
 
-    const snapshot = assignments
+    const snapshotAssignments = assignments
+    const snapshotCompanies = companies
     // Optimistic update
-    set({ assignments: [], selectedCompany: null })
+    set({
+      assignments: [],
+      companies: companies.filter((c) => !c.isPlaceholder),
+      selectedCompany: null,
+    })
     try {
       const res = await authFetch("/api/assignments", {
         method: "DELETE",
@@ -218,7 +231,7 @@ export const useMapStore = create<MapStore>((set, get) => ({
         throw new Error(data.error || "Failed to unassign all")
       }
     } catch (e) {
-      set({ assignments: snapshot })
+      set({ assignments: snapshotAssignments, companies: snapshotCompanies })
       toast.error(e instanceof Error ? e.message : "Failed to unassign all")
       throw e
     }
@@ -265,6 +278,98 @@ export const useMapStore = create<MapStore>((set, get) => ({
     }
   },
 
+  autoPlaceCompanies: async (day) => {
+    const { draftId } = get()
+    if (!draftId) {
+      return { created: [], placedCount: 0, unassignedCount: 0, skippedCount: 0 }
+    }
+
+    try {
+      const res = await authFetch("/api/assignments/auto-place", {
+        method: "POST",
+        body: JSON.stringify({ draftId, day }),
+      })
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || "Failed to auto-place companies")
+      }
+
+      const data = await res.json()
+      set((state) => {
+        const existingIds = new Set(state.assignments.map((a) => a.id))
+        const created = (data.created || []).filter(
+          (a: BoothAssignment) => !existingIds.has(a.id)
+        )
+        return {
+          assignments: [...state.assignments, ...created],
+          selectedCompany: null,
+        }
+      })
+
+      return data
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to auto-place companies")
+      throw e
+    }
+  },
+
+  blockBooth: async (boothId, day) => {
+    const { draftId } = get()
+    if (!draftId) return
+
+    try {
+      const res = await authFetch("/api/assignments/block", {
+        method: "POST",
+        body: JSON.stringify({ draftId, boothId, day }),
+      })
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || "Failed to block booth")
+      }
+
+      const data = await res.json()
+      set((state) => ({
+        companies: [...state.companies, data.company],
+        assignments: [...state.assignments, data.assignment],
+      }))
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to block booth")
+      throw e
+    }
+  },
+
+  unblockBooth: async (assignmentId) => {
+    const { assignments, companies } = get()
+    const assignment = assignments.find((a) => a.id === assignmentId)
+    if (!assignment) return
+
+    try {
+      const res = await authFetch("/api/assignments/block", {
+        method: "DELETE",
+        body: JSON.stringify({ assignmentId }),
+      })
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || "Failed to unblock booth")
+      }
+
+      const company = companies.find((c) => c.id === assignment.companyId)
+
+      set((state) => ({
+        assignments: state.assignments.filter((a) => a.id !== assignmentId),
+        companies: company?.isPlaceholder
+          ? state.companies.filter((c) => c.id !== assignment.companyId)
+          : state.companies,
+      }))
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to unblock booth")
+      throw e
+    }
+  },
+
   // UI actions
   setActiveDay: (day) => set({ activeDay: day, selectedCompany: null }),
   setDraggedCompany: (company) => set({ draggedCompany: company }),
@@ -292,6 +397,7 @@ export const useMapStore = create<MapStore>((set, get) => ({
     const assignedCompanyIds = new Set(assignments.map((a) => a.companyId))
     return companies.filter(
       (c) =>
+        !c.isPlaceholder &&
         !assignedCompanyIds.has(c.id) &&
         c.days.includes(day)
     )

@@ -16,13 +16,14 @@ import {
 import dynamic from "next/dynamic"
 import { CompanySidebar } from "@/components/sidebar/company-sidebar"
 import { ImportDialog } from "@/components/sidebar/import-dialog"
+import { IndustryRangeDialog } from "@/components/sidebar/industry-range-dialog"
 
 const BoothMap = dynamic(
   () => import("@/components/map/booth-map").then((mod) => mod.BoothMap),
   { ssr: false, loading: () => <div className="flex h-full items-center justify-center text-muted-foreground">Loading map...</div> }
 )
 import { ArrowLeft, Download, Upload } from "lucide-react"
-import type { Day } from "@/types"
+import type { Day, IndustryRangeConfig } from "@/types"
 import { toast } from "sonner"
 import { AutoPlaceConfirmationDialog } from "@/components/sidebar/auto-complete-confirmation"
 
@@ -33,8 +34,10 @@ export default function EditorPage() {
   const { user, loading } = useAuth()
   const { apiFetch } = useApi()
   const [draftName, setDraftName] = useState("")
+  const [industryRanges, setIndustryRanges] = useState<IndustryRangeConfig | null>(null)
   const [importOpen, setImportOpen] = useState(false)
   const [autoCompleteConfirmOpen, setAutoCompleteConfirmOpen] = useState(false)
+  const [industryRangesOpen, setIndustryRangesOpen] = useState(false)
 
   const {
     activeDay,
@@ -54,6 +57,7 @@ export default function EditorPage() {
     if (res.ok) {
       const draft = await res.json()
       setDraftName(draft.name)
+      setIndustryRanges(draft.industryRanges ?? {})
       setDraftId(draft.id)
       setCompanies(draft.companies)
       setAssignments(draft.assignments)
@@ -128,6 +132,14 @@ export default function EditorPage() {
           <Button
             variant="default"
             size="sm"
+            onClick={() => setIndustryRangesOpen(true)}
+          >
+            Industry Ranges
+          </Button>
+
+          <Button
+            variant="default"
+            size="sm"
             onClick={() => setAutoCompleteConfirmOpen(true)}
           >
             Auto-Place
@@ -185,9 +197,16 @@ export default function EditorPage() {
       <AutoPlaceConfirmationDialog
         open={autoCompleteConfirmOpen}
         onOpenChange={setAutoCompleteConfirmOpen}
-        draftId={draftId}
         activeDay={activeDay}
        />
+
+      <IndustryRangeDialog
+        open={industryRangesOpen}
+        onOpenChange={setIndustryRangesOpen}
+        draftId={draftId}
+        initialRanges={industryRanges}
+        onSaved={setIndustryRanges}
+      />
       
     </div>
   )

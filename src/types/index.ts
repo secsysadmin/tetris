@@ -11,6 +11,13 @@ export type Industry =
   "SEMICONDUCTORS" |
   "OTHER"
 
+export type IndustryRangeSpec =
+  | { type: "row"; from: string; to: string }
+  | { type: "booth"; from: string; to: string }
+  | { type: "boothList"; booths: string[] }
+
+export type IndustryRangeConfig = Partial<Record<Industry, IndustryRangeSpec[]>>
+
 export interface Company {
   id: string
   name: string
@@ -18,6 +25,7 @@ export interface Company {
   sponsorship: Sponsorship
   hasQueue: boolean
   industry: Industry
+  isPlaceholder: boolean
   draftId: string
 }
 
@@ -35,6 +43,7 @@ export interface Draft {
   userId: string
   companies: Company[]
   assignments: BoothAssignment[]
+  industryRanges?: IndustryRangeConfig | null
   createdAt: string
   updatedAt: string
 }

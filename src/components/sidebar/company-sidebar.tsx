@@ -39,6 +39,7 @@ export function CompanySidebar() {
 
   const filteredCompanies = useMemo(() => {
     return companies.filter((c) => {
+      if (c.isPlaceholder) return false
       // Day filter: show companies relevant to active day
       if (!c.days.includes(activeDay)) return false
 
