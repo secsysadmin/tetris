@@ -39,6 +39,7 @@ export function AutoPlaceConfirmationDialog({
 
         <DialogDescription>
           <br/>
+          <b><u>YOU MUST DEFINE RANGES IN "Industry Ranges" FIRST</u></b> <br/> <br/>
           <b><i>Are you sure you want to auto-place all companies for <u>{dayName}</u></i>? </b> <br/> <br/>
           This will attempt to place all unassigned companies for {dayName} into available booths. It will not move any already assigned companies. This action cannot be undone, but you can always make manual adjustments afterward. <br/> <br/>
     
