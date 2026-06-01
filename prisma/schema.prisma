@@ -11,43 +11,43 @@ datasource db {
 model User {
   id        String   @id @default(uuid())
   email     String   @unique
-  drafts    Draft[]
   createdAt DateTime @default(now())
+  drafts    Draft[]
 }
 
 model Draft {
-  id          String            @id @default(uuid())
-  name        String
-  userId      String
-  user        User              @relation(fields: [userId], references: [id])
-  companies   Company[]
-  assignments BoothAssignment[]
+  id             String            @id @default(uuid())
+  name           String
+  userId         String
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
   industryRanges Json?
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
+  assignments    BoothAssignment[]
+  companies      Company[]
+  user           User              @relation(fields: [userId], references: [id])
 }
 
 model Company {
-  id          String            @id @default(uuid())
-  name        String
-  days        Day[]
-  sponsorship Sponsorship       @default(BASIC)
-  hasQueue    Boolean           @default(false)
-  industry    Industry         @default(OTHER)
-  isPlaceholder Boolean          @default(false)
-  draftId     String
-  draft       Draft             @relation(fields: [draftId], references: [id], onDelete: Cascade)
-  assignments BoothAssignment[]
+  id            String            @id @default(uuid())
+  name          String
+  days          Day[]
+  sponsorship   Sponsorship       @default(BASIC)
+  draftId       String
+  hasQueue      Boolean           @default(false)
+  industry      Industry          @default(OTHER)
+  isPlaceholder Boolean           @default(false)
+  assignments   BoothAssignment[]
+  draft         Draft             @relation(fields: [draftId], references: [id], onDelete: Cascade)
 }
 
 model BoothAssignment {
-  id        String  @id @default(uuid())
+  id        String   @id @default(uuid())
   companyId String
-  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
   draftId   String
-  draft     Draft   @relation(fields: [draftId], references: [id], onDelete: Cascade)
   boothIds  String[]
   day       Day?
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  draft     Draft    @relation(fields: [draftId], references: [id], onDelete: Cascade)
 
   @@unique([companyId, draftId])
 }
