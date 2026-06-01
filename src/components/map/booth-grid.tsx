@@ -47,7 +47,7 @@ export function BoothGrid() {
   const occupancyMap = useMemo(() => {
     const map = new Map<
       string,
-      { companyName: string; sponsorship: string; companyId: string; assignmentId: string; isBothDays: boolean }
+      { companyName: string; sponsorship: string; companyId: string; assignmentId: string; isBothDays: boolean; isPlaceholder: boolean }
     >()
     for (const a of assignments) {
       if (a.day === null || a.day === activeDay) {
@@ -55,11 +55,12 @@ export function BoothGrid() {
         if (company) {
           for (const bid of a.boothIds) {
             map.set(bid, {
-              companyName: company.name,
+              companyName: company.isPlaceholder ? "Blocked Booth" : company.name,
               sponsorship: company.sponsorship,
               companyId: company.id,
               assignmentId: a.id,
               isBothDays: a.day === null,
+              isPlaceholder: company.isPlaceholder,
             })
           }
         }
@@ -112,7 +113,7 @@ export function BoothGrid() {
       seen.add(a.companyId)
 
       const company = companies.find((c) => c.id === a.companyId)
-      if (!company) continue
+      if (!company || company.isPlaceholder) continue
 
       // Get booth definitions for this assignment
       const assignedBooths = a.boothIds
@@ -182,12 +183,18 @@ export function BoothGrid() {
         let stroke = "#d4d4d4"
         let strokeWidth = 1
 
-        if (occupant) {
+        if (occupant && !occupant.isPlaceholder) {
           fill =
             SPONSORSHIP_CONFIG[
               occupant.sponsorship as keyof typeof SPONSORSHIP_CONFIG
             ]?.color || "#E8E8E8"
           stroke = "#999"
+        }
+
+        if (occupant?.isPlaceholder) {
+          fill = "#ffffff"
+          stroke = "#111"
+          strokeWidth = 2
         }
 
         // Fade the selected company's booths during repositioning
@@ -223,12 +230,13 @@ export function BoothGrid() {
                 e.evt.preventDefault()
                 const stage = e.target.getStage()
                 const pointer = stage?.getPointerPosition()
-                if (!pointer || !occupant) return
+                if (!pointer) return
                 setContextMenu({
                   x: pointer.x,
                   y: pointer.y,
-                  companyId: occupant.companyId,
-                  assignmentId: occupant.assignmentId,
+                  boothId: booth.id,
+                  companyId: occupant?.companyId ?? null,
+                  assignmentId: occupant?.assignmentId ?? null,
                 })
               }}
               onClick={(e) => {
@@ -244,6 +252,7 @@ export function BoothGrid() {
                   return
                 }
                 if (occupant) {
+                  if (occupant.isPlaceholder) return
                   startRepositioning(occupant.companyId)
                 } else {
                   setSelectedCompany(null)
@@ -267,6 +276,22 @@ export function BoothGrid() {
               }}
               onMouseLeave={() => setTooltip(null)}
             />
+            {occupant?.isPlaceholder && (
+              <>
+                <Line
+                  points={[booth.x + 4, booth.y + 4, booth.x + booth.width - 4, booth.y + booth.height - 4]}
+                  stroke="#ef4444"
+                  strokeWidth={2}
+                  listening={false}
+                />
+                <Line
+                  points={[booth.x + booth.width - 4, booth.y + 4, booth.x + 4, booth.y + booth.height - 4]}
+                  stroke="#ef4444"
+                  strokeWidth={2}
+                  listening={false}
+                />
+              </>
+            )}
             {/* Booth number (show when not occupied) */}
             {!occupant && (
               <Text

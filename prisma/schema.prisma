@@ -22,6 +22,7 @@ model Draft {
   user        User              @relation(fields: [userId], references: [id])
   companies   Company[]
   assignments BoothAssignment[]
+  industryRanges Json?
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
 }
@@ -33,6 +34,7 @@ model Company {
   sponsorship Sponsorship       @default(BASIC)
   hasQueue    Boolean           @default(false)
   industry    Industry         @default(OTHER)
+  isPlaceholder Boolean          @default(false)
   draftId     String
   draft       Draft             @relation(fields: [draftId], references: [id], onDelete: Cascade)
   assignments BoothAssignment[]

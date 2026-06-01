@@ -14,7 +14,29 @@ export async function GET(req: NextRequest) {
     orderBy: { updatedAt: "desc" },
   })
 
-  return NextResponse.json(drafts)
+  const draftIds = drafts.map((draft) => draft.id)
+  const companyCounts = await prisma.company.groupBy({
+    by: ["draftId"],
+    where: {
+      draftId: { in: draftIds },
+      isPlaceholder: false,
+    },
+    _count: { _all: true },
+  })
+
+  const countByDraft = new Map(
+    companyCounts.map((row) => [row.draftId, row._count._all])
+  )
+
+  const withFilteredCounts = drafts.map((draft) => ({
+    ...draft,
+    _count: {
+      ...draft._count,
+      companies: countByDraft.get(draft.id) ?? 0,
+    },
+  }))
+
+  return NextResponse.json(withFilteredCounts)
 }
 
 export async function POST(req: NextRequest) {

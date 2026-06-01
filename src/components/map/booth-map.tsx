@@ -488,6 +488,7 @@ export function BoothMap() {
         <BoothContextMenu
           x={contextMenu.x}
           y={contextMenu.y}
+          boothId={contextMenu.boothId}
           companyId={contextMenu.companyId}
           assignmentId={contextMenu.assignmentId}
           onClose={() => setContextMenu(null)}
@@ -502,20 +503,22 @@ const SPONSORSHIP_OPTIONS: Sponsorship[] = ["MAROON", "DIAMOND", "GOLD", "SILVER
 function BoothContextMenu({
   x,
   y,
+  boothId,
   companyId,
-  assignmentId: _assignmentId,
+  assignmentId,
   onClose,
 }: {
   x: number
   y: number
-  companyId: string
-  assignmentId: string
+  boothId: string
+  companyId: string | null
+  assignmentId: string | null
   onClose: () => void
 }) {
   const menuRef = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState({ left: x, top: y })
-  const { companies, updateCompany, unassignCompany, moveCompany, startRepositioning, getAssignmentForCompany } = useMapStore()
-  const company = companies.find((c) => c.id === companyId)
+  const { companies, updateCompany, unassignCompany, moveCompany, startRepositioning, getAssignmentForCompany, blockBooth, unblockBooth, activeDay } = useMapStore()
+  const company = companyId ? companies.find((c) => c.id === companyId) : null
 
   // Adjust position so menu stays within the container
   useLayoutEffect(() => {
@@ -554,9 +557,9 @@ function BoothContextMenu({
     return () => document.removeEventListener("mousedown", handleMouseDown)
   }, [onClose])
 
-  if (!company) return null
+  if (companyId && !company) return null
 
-  const isBothDays = company.days.includes("WEDNESDAY") && company.days.includes("THURSDAY")
+  const isBothDays = company ? company.days.includes("WEDNESDAY") && company.days.includes("THURSDAY") : false
 
   async function handleSponsorshipChange(sponsorship: Sponsorship) {
     if (sponsorship === company!.sponsorship) { onClose(); return }
@@ -606,6 +609,23 @@ function BoothContextMenu({
     onClose()
   }
 
+  async function handleBlockBooth() {
+    try {
+      await blockBooth(boothId, activeDay)
+      toast.success("Booth blocked")
+    } catch { /* store showed toast */ }
+    onClose()
+  }
+
+  async function handleUnblockBooth() {
+    if (!assignmentId) return
+    try {
+      await unblockBooth(assignmentId)
+      toast.success("Booth unblocked")
+    } catch { /* store showed toast */ }
+    onClose()
+  }
+
   return (
     <div
       ref={menuRef}
@@ -613,6 +633,26 @@ function BoothContextMenu({
       style={{ left: pos.left, top: pos.top }}
       onContextMenu={(e) => e.preventDefault()}
     >
+      {!company && (
+        <button
+          onClick={handleBlockBooth}
+          className="flex w-full items-center rounded-sm px-2 py-1.5 text-xs text-destructive hover:bg-destructive/10"
+        >
+          Block Booth ({activeDay === "WEDNESDAY" ? "Wed" : "Thu"})
+        </button>
+      )}
+
+      {company?.isPlaceholder && (
+        <button
+          onClick={handleUnblockBooth}
+          className="flex w-full items-center rounded-sm px-2 py-1.5 text-xs text-destructive hover:bg-destructive/10"
+        >
+          Unblock Booth
+        </button>
+      )}
+
+      {company && !company.isPlaceholder && (
+        <>
       <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
         Sponsorship
       </div>
@@ -696,6 +736,8 @@ function BoothContextMenu({
         <X className="mr-2 h-3.5 w-3.5" />
         Unassign
       </button>
+        </>
+      )}
     </div>
   )
 }

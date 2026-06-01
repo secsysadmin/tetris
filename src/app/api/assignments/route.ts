@@ -65,9 +65,18 @@ export async function DELETE(req: NextRequest) {
   if (!draft)
     return NextResponse.json({ error: "Not found" }, { status: 404 })
 
-  const { count } = await prisma.boothAssignment.deleteMany({
-    where: { draftId },
-  })
+  const [deletedBlocked, deletedAssignments] = await prisma.$transaction([
+    prisma.company.deleteMany({
+      where: { draftId, isPlaceholder: true },
+    }),
+    prisma.boothAssignment.deleteMany({
+      where: { draftId },
+    }),
+  ])
 
-  return NextResponse.json({ success: true, deleted: count })
+  return NextResponse.json({
+    success: true,
+    deletedAssignments: deletedAssignments.count,
+    deletedBlockedCompanies: deletedBlocked.count,
+  })
 }

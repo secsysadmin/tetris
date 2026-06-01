@@ -5,6 +5,7 @@ import { useMapStore } from "@/store/map-store"
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
@@ -35,18 +36,14 @@ export function AutoPlaceConfirmationDialog({
         <DialogHeader>
           <DialogTitle>Auto-Place Confirmation</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4 pt-2">
-          <div className="text-sm text-muted-foreground">
-            <p><b>Are you sure you want to auto-place all {dayName} companies?</b></p>
-            <p>
-                This will attempt to place all unassigned companies for {dayName} into available booths.
-                It will not move any already assigned companies.
-                This action cannot be undone, but you can always make manual adjustments afterward.
-            </p>
 
-            <br></br>
+        <DialogDescription>
+          <br/>
+          <b><i>Are you sure you want to auto-place all companies for <u>{dayName}</u></i>? </b> <br/> <br/>
+          This will attempt to place all unassigned companies for {dayName} into available booths. It will not move any already assigned companies. This action cannot be undone, but you can always make manual adjustments afterward.
+        </DialogDescription>
 
-            <Button
+        <Button
               variant="default"
               className="bg-red-600 hover:bg-red-700 text-white"
               onClick={async () => {
@@ -68,11 +65,8 @@ export function AutoPlaceConfirmationDialog({
               disabled={isPlacing}
             >
               {isPlacing ? "Placing..." : "Confirm"}
-            </Button>
+        </Button>
 
-          </div>
-
-        </div>
       </DialogContent>
     </Dialog>
   )
