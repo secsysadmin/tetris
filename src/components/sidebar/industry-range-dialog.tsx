@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -85,6 +85,12 @@ export function IndustryRangeDialog({
       return acc
     }, {})
   )
+
+  useEffect(() => {
+    if (open) {
+      resetState()
+    }
+  }, [initialRanges, open])
 
   const industryRows = useMemo(
     () =>

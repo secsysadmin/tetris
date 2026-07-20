@@ -34,6 +34,8 @@ function findNextPlacement(
 ): string[] | null {
   if (allowed.size === 0) return null
 
+  const candidates: string[][] = []
+
   for (const row of ALL_ROWS) {
     const segmentOrder = getSegmentOrder(row)
     for (const segment of segmentOrder) {
@@ -43,13 +45,15 @@ function findNextPlacement(
       for (let i = 0; i <= segmentBooths.length - count; i += 1) {
         const group = segmentBooths.slice(i, i + count)
         if (group.every((b) => !occupied.has(b.id) && allowed.has(b.id))) {
-          return group.map((b) => b.id)
+          candidates.push(group.map((b) => b.id))
         }
       }
     }
   }
 
-  return null
+  if (candidates.length === 0) return null
+  const randomIndex = Math.floor(Math.random() * candidates.length)
+  return candidates[randomIndex]
 }
 
 function normalizeBoothId(raw: string): string | null {
@@ -197,13 +201,6 @@ export async function POST(req: NextRequest) {
 
   const industryRanges = expandIndustryRanges(draft.industryRanges)
 
-  const orderedCompanies = [...unassignedCompanies].sort((a, b) => {
-    const boothCountA = SPONSORSHIP_CONFIG[a.sponsorship].booths
-    const boothCountB = SPONSORSHIP_CONFIG[b.sponsorship].booths
-    if (boothCountB !== boothCountA) return boothCountB - boothCountA
-    return a.name.localeCompare(b.name)
-  })
-
   const assignmentData: Array<{
     companyId: string
     draftId: string
@@ -211,7 +208,7 @@ export async function POST(req: NextRequest) {
     day: Day | null
   }> = []
 
-  for (const company of orderedCompanies) {
+  for (const company of unassignedCompanies) {
     const boothCount = SPONSORSHIP_CONFIG[company.sponsorship].booths
     const allowed = industryRanges.get(company.industry) || new Set<string>()
     const placement = findNextPlacement(boothCount, occupied, allowed)
