@@ -37,6 +37,11 @@ export function CompanySidebar() {
     [assignments]
   )
 
+  const activeCompanies = useMemo(
+    () => companies.filter((c) => !c.isPlaceholder && c.days.includes(activeDay)),
+    [companies, activeDay]
+  )
+
   const filteredCompanies = useMemo(() => {
     return companies.filter((c) => {
       if (c.isPlaceholder) return false
@@ -87,7 +92,17 @@ export function CompanySidebar() {
     (c) => assignedCompanyIds.has(c.id)
   ).length
   const totalUnassigned = totalFiltered - totalAssigned
-  const pct = totalFiltered > 0 ? Math.round((totalAssigned / totalFiltered) * 100) : 0
+  const filteredPct = totalFiltered > 0 ? Math.round((totalAssigned / totalFiltered) * 100) : 0
+
+  const totalCompanies = activeCompanies.length
+  const totalActiveAssigned = activeCompanies.filter((c) => assignedCompanyIds.has(c.id)).length
+  const totalActiveUnassigned = totalCompanies - totalActiveAssigned
+  const pct = totalCompanies > 0 ? Math.round((totalActiveAssigned / totalCompanies) * 100) : 0
+  const progressWidth = totalCompanies > 0 ? (totalActiveAssigned / totalCompanies) * 100 : 0
+  const remainingMarkerPosition =
+    totalCompanies > 0
+      ? Math.max(0, Math.min(100, ((totalCompanies - 30) / totalCompanies) * 100))
+      : 0
 
   return (
     <div className="flex w-72 flex-col overflow-hidden border-r bg-white">
@@ -138,9 +153,32 @@ export function CompanySidebar() {
             </SelectContent>
           </Select>
         </div>
-        <div className="flex items-center justify-between">
+        <div className="space-y-2 rounded-md border bg-slate-50/70 px-3 py-2">
+          <div className="flex items-center justify-between text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+            <span>Placement progress</span>
+            <span>{pct}% assigned</span>
+          </div>
+          <div className="relative h-2 overflow-hidden rounded-full bg-slate-200">
+            <div
+              className="h-full rounded-full bg-slate-900 transition-[width] duration-700 ease-out"
+              style={{ width: `${progressWidth}%` }}
+            />
+            {totalCompanies > 0 && (
+              <div
+                className="absolute -top-1.5 h-3 w-0.5 -translate-x-1/2 rounded-full bg-red-600 shadow-[0_0_0_1px_rgba(220,38,38,0.18)]"
+                style={{ left: `${remainingMarkerPosition}%` }}
+                aria-hidden="true"
+              />
+            )}
+          </div>
+          <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+            <span>{totalActiveAssigned}/{totalCompanies} assigned</span>
+            <span>{totalActiveUnassigned} remaining</span>
+          </div>
+        </div>
+        <div className="flex items-center justify-between gap-3">
           <p className="text-xs text-muted-foreground">
-            {totalAssigned}/{totalFiltered} assigned ({pct}%) &middot; {totalUnassigned} remaining
+            {totalAssigned}/{totalFiltered} assigned ({filteredPct}%) &middot; {totalUnassigned} remaining
           </p>
           {assignments.length > 0 && (
             confirmingUnassignAll ? (
@@ -187,7 +225,7 @@ export function CompanySidebar() {
 
       <Separator />
 
-      <ScrollArea className="min-h-0 flex-1 [&>[data-slot=scroll-area-viewport]>div]:!block">
+      <ScrollArea className="min-h-0 flex-1 [&>[data-slot=scroll-area-viewport]>div]:block!">
         <div className="p-3 space-y-4">
           {Array.from(grouped.entries()).map(([tier, tierCompanies]) => (
             <div key={tier}>
