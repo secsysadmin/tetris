@@ -15,6 +15,7 @@ import { SPONSORSHIP_CONFIG, SPONSORSHIP_TEXT_COLOR } from "@/lib/constants"
 import type { Company, Sponsorship, Day } from "@/types"
 import { GripVertical, MoreVertical } from "lucide-react"
 import { toast } from "sonner"
+import { useState } from "react"
 
 interface CompanyCardProps {
   company: Company
@@ -26,6 +27,9 @@ const SPONSORSHIP_OPTIONS: Sponsorship[] = ["MAROON", "DIAMOND", "GOLD", "SILVER
 export function CompanyCard({ company, isAssigned }: CompanyCardProps) {
   const { setDraggedCompany, selectedCompany, setSelectedCompany, updateCompany, unassignCompany, getAssignmentForCompany, moveCompany, repositioning, startRepositioning, cancelRepositioning } =
     useMapStore()
+  const [boothCountInput, setBoothCountInput] = useState(
+    company.boothCount.toString()
+  )
   const config = SPONSORSHIP_CONFIG[company.sponsorship]
   const isSelected = selectedCompany === company.id
   const isBothDays =
@@ -47,10 +51,42 @@ export function CompanyCard({ company, isAssigned }: CompanyCardProps) {
       if (isAssigned) {
         await unassignCompany(company.id)
       }
-      await updateCompany(company.id, { sponsorship })
+
+      const defaultBoothCount = SPONSORSHIP_CONFIG[sponsorship].booths
+
+      await updateCompany(company.id, {
+        sponsorship,
+        boothCount: defaultBoothCount,
+      })
+
+      setBoothCountInput(defaultBoothCount.toString())
+
       toast.success(`Updated to ${SPONSORSHIP_CONFIG[sponsorship].label}`)
     } catch {
       // Store already showed error toast
+    }
+  }
+
+  async function handleBoothCountChange() {
+    const boothCount = Number(boothCountInput)
+
+    if (!Number.isInteger(boothCount) || boothCount < 1) {
+      setBoothCountInput(company.boothCount.toString())
+      toast.error("Booth count must be a whole number greater than 0")
+      return
+    }
+
+    if (boothCount === company.boothCount) return
+
+    try {
+      if (isAssigned) {
+        await unassignCompany(company.id)
+      }
+
+      await updateCompany(company.id, { boothCount })
+      toast.success(`Booth count updated to ${boothCount}`)
+    } catch {
+      setBoothCountInput(company.boothCount.toString())
     }
   }
 
@@ -130,7 +166,7 @@ export function CompanyCard({ company, isAssigned }: CompanyCardProps) {
             color: SPONSORSHIP_TEXT_COLOR[company.sponsorship],
           }}
         >
-          {config.booths}
+          {company.boothCount}
         </Badge>
         <DropdownMenu>
           <DropdownMenuTrigger
@@ -142,6 +178,36 @@ export function CompanyCard({ company, isAssigned }: CompanyCardProps) {
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+
+
+            <DropdownMenuLabel className="text-xs">Booth Count</DropdownMenuLabel>
+            <div
+              className="flex items-center gap-2 px-2 pb-2"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <input
+                type="number"
+                min={1}
+                step={1}
+                value={boothCountInput}
+                onChange={(e) => setBoothCountInput(e.target.value)}
+                onKeyDown={(e) => {
+                  e.stopPropagation()
+                  if (e.key === "Enter") {
+                    void handleBoothCountChange()
+                  }
+                }}
+                className="h-7 w-16 rounded-md border px-2 text-xs"
+              />
+              <button
+                type="button"
+                onClick={() => void handleBoothCountChange()}
+                className="h-7 rounded-md border px-2 text-xs hover:bg-accent"
+              >
+                Save
+              </button>
+            </div>
+            <DropdownMenuSeparator />
 
             <DropdownMenuLabel className="text-xs">Sponsorship</DropdownMenuLabel>
             {SPONSORSHIP_OPTIONS.map((s) => (
