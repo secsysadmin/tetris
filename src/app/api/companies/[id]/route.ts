@@ -12,6 +12,16 @@ export async function PUT(
   const { id } = await params
   const updates = await req.json()
 
+  if (
+    updates.boothCount !== undefined &&
+    (!Number.isInteger(updates.boothCount) || updates.boothCount < 1)
+  ) {
+    return NextResponse.json(
+      { error: "Booth count must be a positive whole number" },
+      { status: 400 }
+    )
+  }
+
   // Verify company belongs to user's draft
   const company = await prisma.company.findUnique({
     where: { id },
@@ -27,7 +37,12 @@ export async function PUT(
       name: updates.name,
       days: updates.days,
       sponsorship: updates.sponsorship,
-      ...(updates.hasQueue !== undefined && { hasQueue: updates.hasQueue }),
+      ...(updates.boothCount !== undefined && {
+        boothCount: updates.boothCount,
+      }),
+      ...(updates.hasQueue !== undefined && {
+        hasQueue: updates.hasQueue,
+      }),
     },
   })
 

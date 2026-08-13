@@ -23,6 +23,7 @@ export interface Company {
   name: string
   days: Day[]
   sponsorship: Sponsorship
+  boothCount: number
   hasQueue: boolean
   industry: Industry
   isPlaceholder: boolean

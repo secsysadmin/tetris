@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { getAuthUser } from "@/lib/auth"
 import * as XLSX from "xlsx"
 import type { Day, Sponsorship, Industry } from "@/types"
+import { SPONSORSHIP_CONFIG } from "@/lib/constants"
 
 const VALID_SPONSORSHIPS: Sponsorship[] = [
   "MAROON",
@@ -163,7 +164,11 @@ export async function POST(
       updated++
     } else {
       await prisma.company.create({
-        data: { ...c, draftId: id },
+        data: {
+          ...c,
+          draftId: id,
+          boothCount: SPONSORSHIP_CONFIG[c.sponsorship].booths,
+        },
       })
       created++
     }

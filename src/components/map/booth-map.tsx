@@ -210,7 +210,7 @@ export function BoothMap() {
       return
     }
 
-    const boothCount = SPONSORSHIP_CONFIG[draggedCompany.sponsorship].booths
+    const boothCount = draggedCompany.boothCount
 
     // Cache occupied set for the duration of the drag
     if (!occupiedCacheRef.current) {
@@ -268,7 +268,7 @@ export function BoothMap() {
           return
         }
 
-        const boothCount = SPONSORSHIP_CONFIG[company.sponsorship].booths
+        const boothCount = company.boothCount
 
         // Get occupied, excluding current company's booths
         const occupied = state.getOccupiedBoothIds(activeDayRef.current)
@@ -565,7 +565,10 @@ function BoothContextMenu({
     if (sponsorship === company!.sponsorship) { onClose(); return }
     try {
       await unassignCompany(company!.id)
-      await updateCompany(company!.id, { sponsorship })
+      await updateCompany(company!.id, {
+        sponsorship,
+        boothCount: SPONSORSHIP_CONFIG[sponsorship].booths,
+      })
       toast.success(`Updated to ${SPONSORSHIP_CONFIG[sponsorship].label}`)
     } catch { /* store showed toast */ }
     onClose()

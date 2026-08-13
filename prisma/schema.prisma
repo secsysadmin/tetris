@@ -32,6 +32,7 @@ model Company {
   name          String
   days          Day[]
   sponsorship   Sponsorship       @default(BASIC)
+  boothCount    Int               @default(1)
   draftId       String
   hasQueue      Boolean           @default(false)
   industry      Industry          @default(OTHER)

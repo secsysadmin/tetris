@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { getAuthUser } from "@/lib/auth"
-import { ALL_ROWS, EDGE_ROWS, SPONSORSHIP_CONFIG } from "@/lib/constants"
+import { ALL_ROWS, EDGE_ROWS } from "@/lib/constants"
 import { getBoothById, getBoothLayout, getSegmentBooths } from "@/lib/booth-geometry"
 import type { Day, BoothAssignment, Industry } from "@/types"
 
@@ -208,8 +208,8 @@ export async function POST(req: NextRequest) {
     day: Day | null
   }> = []
 
-  for (const company of unassignedCompanies) {
-    const boothCount = SPONSORSHIP_CONFIG[company.sponsorship].booths
+for (const company of unassignedCompanies) {
+    const boothCount = company.boothCount
     const allowed = industryRanges.get(company.industry) || new Set<string>()
     const placement = findNextPlacement(boothCount, occupied, allowed)
     if (!placement) continue
