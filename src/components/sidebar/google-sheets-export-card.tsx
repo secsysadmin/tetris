@@ -41,6 +41,7 @@ export function GoogleSheetsExportCard({
       <CardContent className="space-y-4">
         <div className="grid gap-2">
           <Label htmlFor="google-sheet-url">Google Sheet URL</Label>
+          <CardDescription>Copy and paste a shareable link</CardDescription>
           <Input
             id="google-sheet-url"
             placeholder="https://docs.google.com/spreadsheets/d/..."
@@ -51,6 +52,8 @@ export function GoogleSheetsExportCard({
 
         <div className="grid gap-2">
           <Label htmlFor="google-worksheet-name">Worksheet Name</Label>
+          <CardDescription>Enter the name of the specific sheet, not the title of the Google Sheet file</CardDescription>
+
           <Input
             id="google-worksheet-name"
             value={googleWorksheetName}
