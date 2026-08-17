@@ -8,7 +8,9 @@ export async function GET(req: NextRequest) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   try {
-    const state = `${createGoogleState()}:${user.id}`
+    const requestedRedirect = req.nextUrl.searchParams.get("redirectTo")
+    const redirectTo = requestedRedirect && requestedRedirect.startsWith("/") ? requestedRedirect : "/dashboard"
+    const state = `${createGoogleState()}:${user.id}:${encodeURIComponent(redirectTo)}`
     const url = getGoogleOAuthUrl(state)
 
     const baseUrl = new URL(req.url)

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { exchangeGoogleCode, getGoogleOAuthClient, createGoogleErrorResponse } from "@/lib/google-auth"
-import { google } from "googleapis"
+import { exchangeGoogleCode, getGoogleOAuthClient, createGoogleErrorResponse, getGoogleAccountIdentity } from "@/lib/google-auth"
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
@@ -22,45 +21,58 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Invalid OAuth state" }, { status: 400 })
   }
 
-  const [, userId] = state.split(":")
+  const stateParts = state.split(":")
+  const [, userId, encodedRedirectTo] = stateParts
   if (!userId) {
     return NextResponse.json({ error: "Invalid OAuth state" }, { status: 400 })
   }
 
+  const redirectTarget = encodedRedirectTo ? decodeURIComponent(encodedRedirectTo) : "/dashboard"
+
   try {
     const tokens = await exchangeGoogleCode(code)
+    const accessToken = tokens.access_token?.trim() ?? ""
+    const refreshToken = tokens.refresh_token?.trim() ?? ""
+
+    if (!accessToken && !refreshToken) {
+      throw new Error("Google OAuth did not return any credentials")
+    }
+
     const client = getGoogleOAuthClient()
     client.setCredentials(tokens)
 
-    const oauth2 = google.oauth2({
-      version: "v2",
-      auth: client,
+    const appUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true },
     })
-    const profile = await oauth2.userinfo.get()
-    const googleUserId = profile.data.id ?? ""
-    const googleEmail = profile.data.email ?? ""
+
+    const appUserEmail = appUser?.email?.trim().toLowerCase() ?? ""
+    const googleIdentity = await getGoogleAccountIdentity(accessToken)
+    const connectedGoogleEmail = googleIdentity?.email || appUserEmail
+    const connectedGoogleUserId = googleIdentity?.googleUserId || ""
 
     await prisma.googleConnection.upsert({
       where: { userId },
       update: {
-        googleUserId,
-        email: googleEmail,
-        accessToken: tokens.access_token ?? "",
-        refreshToken: tokens.refresh_token ?? "",
+        googleUserId: connectedGoogleUserId,
+        email: connectedGoogleEmail,
+        accessToken,
+        refreshToken,
         tokenExpiry: tokens.expiry_date ? new Date(tokens.expiry_date) : null,
         updatedAt: new Date(),
       },
       create: {
         userId,
-        googleUserId,
-        email: googleEmail,
-        accessToken: tokens.access_token ?? "",
-        refreshToken: tokens.refresh_token ?? "",
+        googleUserId: connectedGoogleUserId,
+        email: connectedGoogleEmail,
+        accessToken,
+        refreshToken,
         tokenExpiry: tokens.expiry_date ? new Date(tokens.expiry_date) : null,
       },
     })
 
-    const response = NextResponse.redirect(new URL("/dashboard", req.url))
+    const targetUrl = redirectTarget.startsWith("/") ? redirectTarget : "/dashboard"
+    const response = NextResponse.redirect(new URL(targetUrl, req.url))
     response.cookies.set("google_oauth_state", "", {
       path: "/",
       expires: new Date(0),

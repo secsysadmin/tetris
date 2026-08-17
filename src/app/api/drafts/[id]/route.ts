@@ -139,7 +139,18 @@ export async function GET(
 
   if (!draft) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
-  return NextResponse.json(draft)
+  const userGoogleConnection = await prisma.googleConnection.findUnique({
+    where: { userId: user.id },
+    select: {
+      email: true,
+      googleUserId: true,
+    },
+  })
+
+  return NextResponse.json({
+    ...draft,
+    googleConnection: draft.googleConnection ?? userGoogleConnection ?? null,
+  })
 }
 
 export async function PUT(

@@ -6,9 +6,6 @@ import { useAuth } from "@/hooks/use-auth"
 import { useApi } from "@/hooks/use-api"
 import { useMapStore } from "@/store/map-store"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   DropdownMenu,
@@ -21,6 +18,7 @@ import { CompanySidebar } from "@/components/sidebar/company-sidebar"
 import { GoogleSheetsExportCard } from "@/components/sidebar/google-sheets-export-card"
 import { ImportDialog } from "@/components/sidebar/import-dialog"
 import { IndustryRangeDialog } from "@/components/sidebar/industry-range-dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
 const BoothMap = dynamic(
   () => import("@/components/map/booth-map").then((mod) => mod.BoothMap),
@@ -40,6 +38,7 @@ export default function EditorPage() {
   const [draftName, setDraftName] = useState("")
   const [industryRanges, setIndustryRanges] = useState<IndustryRangeConfig | null>(null)
   const [importOpen, setImportOpen] = useState(false)
+  const [googleSheetsOpen, setGoogleSheetsOpen] = useState(false)
   const [autoCompleteConfirmOpen, setAutoCompleteConfirmOpen] = useState(false)
   const [industryRangesOpen, setIndustryRangesOpen] = useState(false)
   const [googleSheetUrl, setGoogleSheetUrl] = useState("")
@@ -126,7 +125,8 @@ export default function EditorPage() {
 
   async function handleConnectGoogle() {
     setGoogleBusy(true)
-    const res = await apiFetch(`/api/google/connect`)
+    const redirectTo = encodeURIComponent(window.location.pathname + window.location.search)
+    const res = await apiFetch(`/api/google/connect?redirectTo=${redirectTo}`)
     const data = await res.json().catch(() => ({}))
     if (res.ok && data.redirectUrl) {
       window.location.href = data.redirectUrl
@@ -237,6 +237,14 @@ export default function EditorPage() {
           <Button
             variant="outline"
             size="sm"
+            onClick={() => setGoogleSheetsOpen(true)}
+          >
+            📗Google Sheets
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => setImportOpen(true)}
           >
             <Upload className="mr-1 h-4 w-4" />
@@ -270,6 +278,17 @@ export default function EditorPage() {
       <div className="flex flex-1 overflow-hidden">
         <CompanySidebar />
         <div className="flex-1 overflow-hidden bg-gray-100 p-4">
+          <div className="h-[calc(100%-0rem)] overflow-hidden rounded-lg border bg-white">
+            <BoothMap />
+          </div>
+        </div>
+      </div>
+
+      <Dialog open={googleSheetsOpen} onOpenChange={setGoogleSheetsOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Import Companies</DialogTitle>
+          </DialogHeader>
           <GoogleSheetsExportCard
             googleSheetUrl={googleSheetUrl}
             googleWorksheetName={googleWorksheetName}
@@ -283,11 +302,8 @@ export default function EditorPage() {
             onUpdateGoogleSheet={handleUpdateGoogleSheet}
             onDisconnectGoogle={handleDisconnectGoogle}
           />
-          <div className="h-[calc(100%-14rem)] overflow-hidden rounded-lg border bg-white">
-            <BoothMap />
-          </div>
-        </div>
-      </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Import dialog */}
       <ImportDialog

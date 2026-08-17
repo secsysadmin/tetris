@@ -6,7 +6,7 @@ import type { NextRequest } from "next/server"
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET
 const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI
-const GOOGLE_SCOPES = ["https://www.googleapis.com/auth/drive.file"]
+const GOOGLE_SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
 function ensureGoogleConfig() {
   if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET || !GOOGLE_REDIRECT_URI) {
@@ -39,6 +39,33 @@ export async function exchangeGoogleCode(code: string) {
   return tokens
 }
 
+export async function getGoogleAccountIdentity(accessToken: string) {
+  if (!accessToken) return null
+
+  try {
+    const response = await fetch(`https://oauth2.googleapis.com/tokeninfo?access_token=${encodeURIComponent(accessToken)}`)
+    if (!response.ok) return null
+
+    const payload = await response.json() as {
+      email?: string
+      sub?: string
+      user_id?: string
+    }
+
+    const email = typeof payload.email === "string" ? payload.email.trim().toLowerCase() : ""
+    const googleUserId = typeof payload.sub === "string" ? payload.sub : typeof payload.user_id === "string" ? payload.user_id : ""
+
+    if (!email && !googleUserId) return null
+
+    return {
+      email: email || "",
+      googleUserId,
+    }
+  } catch {
+    return null
+  }
+}
+
 export async function getGoogleTokensForUser(userId: string) {
   const connection = await prisma.googleConnection.findUnique({
     where: { userId },
@@ -46,20 +73,36 @@ export async function getGoogleTokensForUser(userId: string) {
 
   if (!connection) return null
 
+  const accessToken = connection.accessToken?.trim()
+  const refreshToken = connection.refreshToken?.trim()
+
+  if (!accessToken && !refreshToken) {
+    return null
+  }
+
   if (connection.tokenExpiry && connection.tokenExpiry.getTime() <= Date.now()) {
+    if (!refreshToken) return null
+
     const client = getGoogleOAuthClient()
     client.setCredentials({
-      refresh_token: connection.refreshToken,
-      access_token: connection.accessToken,
+      refresh_token: refreshToken,
+      access_token: accessToken || undefined,
     })
 
     try {
       const { credentials } = await client.refreshAccessToken()
+      const refreshedAccessToken = credentials.access_token?.trim() ?? accessToken ?? ""
+      const refreshedRefreshToken = credentials.refresh_token?.trim() ?? refreshToken
+
+      if (!refreshedAccessToken) {
+        return null
+      }
+
       const updated = await prisma.googleConnection.update({
         where: { userId },
         data: {
-          accessToken: credentials.access_token ?? connection.accessToken,
-          refreshToken: credentials.refresh_token ?? connection.refreshToken,
+          accessToken: refreshedAccessToken,
+          refreshToken: refreshedRefreshToken,
           tokenExpiry: credentials.expiry_date ? new Date(credentials.expiry_date) : null,
         },
       })
@@ -74,14 +117,18 @@ export async function getGoogleTokensForUser(userId: string) {
     }
   }
 
+  if (!accessToken) {
+    return null
+  }
+
   return {
-    accessToken: connection.accessToken,
-    refreshToken: connection.refreshToken,
+    accessToken,
+    refreshToken: refreshToken || "",
     expiryDate: connection.tokenExpiry,
   }
 }
 
-export async function getGoogleDriveClientForUser(userId: string) {
+export async function getGoogleSheetsClientForUser(userId: string) {
   const tokens = await getGoogleTokensForUser(userId)
   if (!tokens) return null
 
@@ -91,7 +138,7 @@ export async function getGoogleDriveClientForUser(userId: string) {
     refresh_token: tokens.refreshToken,
   })
 
-  return google.drive({ version: "v3", auth: client })
+  return google.sheets({ version: "v4", auth: client })
 }
 
 export function parseGoogleSpreadsheetId(url: string) {
@@ -105,20 +152,15 @@ export function parseGoogleSpreadsheetId(url: string) {
 }
 
 export async function verifyGoogleSheetAccess(userId: string, spreadsheetId: string) {
-  const drive = await getGoogleDriveClientForUser(userId)
-  if (!drive) {
+  const sheets = await getGoogleSheetsClientForUser(userId)
+  if (!sheets) {
     throw new Error("Google authorization is not available. Please reconnect your Google account.")
   }
 
-  const response = await drive.files.get({
-    fileId: spreadsheetId,
-    fields: "id,name,capabilities",
+  const response = await sheets.spreadsheets.get({
+    spreadsheetId,
+    fields: "spreadsheetId,properties.title",
   })
-
-  const capabilities = response.data.capabilities ?? {}
-  if (!capabilities.canEdit) {
-    throw new Error("The connected Google account does not have edit access to that spreadsheet.")
-  }
 
   return response.data
 }
