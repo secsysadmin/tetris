@@ -14,10 +14,13 @@ export async function GET(
   const { searchParams } = new URL(req.url)
   const dayFilter = searchParams.get("day")?.toUpperCase()
 
+  const format = searchParams.get("format")
+
   const draft = await prisma.draft.findFirst({
     where: { id, userId: user.id },
     include: {
       assignments: { include: { company: true } },
+      companies: true,
     },
   })
 
@@ -43,6 +46,60 @@ export async function GET(
     if (day === "WEDNESDAY") return "Wednesday"
     if (day === "THURSDAY") return "Thursday"
     return companyDays.map((d) => d === "WEDNESDAY" ? "Wednesday" : "Thursday").join(" ")
+  }
+
+  // Placement report: every confirmed company for each day, whether or not it
+  // has booths yet, so the gaps are as visible as the placements.
+  if (format === "report") {
+    const assignmentByCompany = new Map(
+      draft.assignments.map((a) => [a.companyId, a])
+    )
+    const reportRows: Record<string, string | number>[] = []
+
+    for (const day of ["WEDNESDAY", "THURSDAY"] as const) {
+      const dayName = day === "WEDNESDAY" ? "Wednesday (Day 1)" : "Thursday (Day 2)"
+      const forDay = draft.companies
+        .filter(
+          (c) =>
+            !c.isPlaceholder &&
+            c.status === "CONFIRMED" &&
+            c.days.includes(day)
+        )
+        .map((c) => {
+          const a = assignmentByCompany.get(c.id)
+          const placed = a && (a.day === null || a.day === day)
+          return {
+            name: c.name,
+            sponsorship: c.sponsorship,
+            boothCount: c.boothCount,
+            booths: placed ? formatBoothIds(a.boothIds) : "",
+          }
+        })
+        .sort((x, y) => {
+          // Placed companies first, in floor order; unplaced trail alphabetically.
+          if (!!x.booths !== !!y.booths) return x.booths ? -1 : 1
+          if (x.booths && y.booths) return x.booths.localeCompare(y.booths)
+          return x.name.localeCompare(y.name)
+        })
+
+      for (const r of forDay) {
+        reportRows.push({
+          Day: dayName,
+          Company: r.name,
+          Package: r.sponsorship,
+          Booths: r.boothCount,
+          "Booth IDs": r.booths || "NOT PLACED",
+        })
+      }
+    }
+
+    const reportSheet = XLSX.utils.json_to_sheet(reportRows)
+    return new NextResponse(XLSX.utils.sheet_to_csv(reportSheet), {
+      headers: {
+        "Content-Type": "text/csv",
+        "Content-Disposition": `attachment; filename="${draft.name}-Placement-Report.csv"`,
+      },
+    })
   }
 
   const rows = draft.assignments
