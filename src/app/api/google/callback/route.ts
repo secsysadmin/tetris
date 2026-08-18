@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { exchangeGoogleCode, getGoogleOAuthClient, createGoogleErrorResponse, getGoogleAccountIdentity } from "@/lib/google-auth"
+import { exchangeGoogleCode, createGoogleErrorResponse, getGoogleAccountIdentity } from "@/lib/google-auth"
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
@@ -38,18 +38,14 @@ export async function GET(req: NextRequest) {
       throw new Error("Google OAuth did not return any credentials")
     }
 
-    const client = getGoogleOAuthClient()
-    client.setCredentials(tokens)
-
-    const appUser = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { email: true },
-    })
-
-    const appUserEmail = appUser?.email?.trim().toLowerCase() ?? ""
     const googleIdentity = await getGoogleAccountIdentity(accessToken)
-    const connectedGoogleEmail = googleIdentity?.email || appUserEmail
-    const connectedGoogleUserId = googleIdentity?.googleUserId || ""
+
+    if (!googleIdentity?.email || !googleIdentity.googleUserId) {
+      throw new Error("Unable to determine the connected Google account.")
+    }
+
+    const connectedGoogleEmail = googleIdentity.email
+    const connectedGoogleUserId = googleIdentity.googleUserId
 
     await prisma.googleConnection.upsert({
       where: { userId },

@@ -6,7 +6,12 @@ import type { NextRequest } from "next/server"
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET
 const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI
-const GOOGLE_SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
+const GOOGLE_SCOPES = [
+  "openid",
+  "https://www.googleapis.com/auth/userinfo.email",
+  "https://www.googleapis.com/auth/spreadsheets",
+]
+
 
 function ensureGoogleConfig() {
   if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET || !GOOGLE_REDIRECT_URI) {
@@ -43,23 +48,30 @@ export async function getGoogleAccountIdentity(accessToken: string) {
   if (!accessToken) return null
 
   try {
-    const response = await fetch(`https://oauth2.googleapis.com/tokeninfo?access_token=${encodeURIComponent(accessToken)}`)
+    const response = await fetch(
+      "https://openidconnect.googleapis.com/v1/userinfo",
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      }
+    )
+
     if (!response.ok) return null
 
     const payload = await response.json() as {
       email?: string
       sub?: string
-      user_id?: string
     }
 
     const email = typeof payload.email === "string" ? payload.email.trim().toLowerCase() : ""
-    const googleUserId = typeof payload.sub === "string" ? payload.sub : typeof payload.user_id === "string" ? payload.user_id : ""
+    const googleUserId = typeof payload.sub === "string" ? payload.sub : ""
 
     if (!email && !googleUserId) return null
 
     return {
-      email: email || "",
-      googleUserId,
+      email: email,
+      googleUserId: googleUserId,
     }
   } catch {
     return null
