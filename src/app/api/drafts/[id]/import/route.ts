@@ -63,7 +63,6 @@ function parseIndustry(value: string): Industry {
   const v = value.trim()
   const industryRaw = v.toUpperCase()
 
-  console.log(`[import] Parsing industry: "${value}" → "${industryRaw}"`)
   if (VALID_INDUSTRIES.includes(industryRaw as Industry)) {
     return industryRaw as Industry
   }
@@ -141,7 +140,6 @@ export async function POST(
     const industryRaw = String(row[2] || "").trim().toUpperCase()
     const industryValue = parseIndustry(industryRaw)
 
-    console.log(`[import] Row ${rowNum}: ${name} → ${parsed.sponsorship} [${parsed.days.join(", ")}], Industry: ${industryValue}`)
     companies.push({ name, days: parsed.days, sponsorship: parsed.sponsorship, industry: industryValue as Industry })
   }
 

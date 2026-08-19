@@ -208,7 +208,7 @@ export async function POST(req: NextRequest) {
     day: Day | null
   }> = []
 
-for (const company of unassignedCompanies) {
+  for (const company of unassignedCompanies) {
     const boothCount = company.boothCount
     const allowed = industryRanges.get(company.industry) || new Set<string>()
     const placement = findNextPlacement(boothCount, occupied, allowed)
