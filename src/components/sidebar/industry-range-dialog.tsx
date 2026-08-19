@@ -291,7 +291,7 @@ export function IndustryRangeDialog({
 
         <DialogDescription>
             <b>Note:</b> Avoid using ranges that span multiple rows like A-14 to B-15. Instead, define separate ranges. <br/>
-            <b>Example:</b> For A-1 to B-23, define one range of "Rows" as A to A and another range of "Booth range" as B-1 to B-23.<br/> <br/>
+            <b>Example:</b> For A-1 to B-23, define one range of &quot;Rows&quot; as A to A and another range of &quot;Booth range&quot; as B-1 to B-23.<br/> <br/>
             
             The following formats are accepted for ranges:<br />
             - <b><u>Booth range:</u></b> A range of booths spanning the same row (e.g. A-1 to A-4)<br />

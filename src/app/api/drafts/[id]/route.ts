@@ -180,12 +180,29 @@ export async function GET(
     include: {
       companies: true,
       assignments: true,
+      googleConnection: {
+        select: {
+          email: true,
+          googleUserId: true,
+        },
+      },
     },
   })
 
   if (!draft) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
-  return NextResponse.json(draft)
+  const userGoogleConnection = await prisma.googleConnection.findUnique({
+    where: { userId: user.id },
+    select: {
+      email: true,
+      googleUserId: true,
+    },
+  })
+
+  return NextResponse.json({
+    ...draft,
+    googleConnection: draft.googleConnection ?? userGoogleConnection ?? null,
+  })
 }
 
 export async function PUT(
@@ -202,6 +219,8 @@ export async function PUT(
     capacityPerDay?: number
     industryRanges?: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput
     industryZones?: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput
+    googleSheetUrl?: string | null
+    googleWorksheetName?: string | null
   } = {}
 
   if (typeof body.name === "string") {
@@ -240,6 +259,22 @@ export async function PUT(
       data.industryZones = Prisma.JsonNull
     } else if (normalized.value !== undefined) {
       data.industryZones = normalized.value as unknown as Prisma.InputJsonValue
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(body, "googleSheetUrl")) {
+    if (typeof body.googleSheetUrl === "string") {
+      data.googleSheetUrl = body.googleSheetUrl.trim() || null
+    } else if (body.googleSheetUrl === null) {
+      data.googleSheetUrl = null
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(body, "googleWorksheetName")) {
+    if (typeof body.googleWorksheetName === "string") {
+      data.googleWorksheetName = body.googleWorksheetName.trim() || null
+    } else if (body.googleWorksheetName === null) {
+      data.googleWorksheetName = null
     }
   }
 

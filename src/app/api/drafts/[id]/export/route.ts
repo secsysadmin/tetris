@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { getAuthUser } from "@/lib/auth"
 import * as XLSX from "xlsx"
+import { getDraftExportRows, getPlacementReportRows } from "@/lib/export"
 
 export async function GET(
   req: NextRequest,
@@ -12,113 +13,21 @@ export async function GET(
 
   const { id } = await params
   const { searchParams } = new URL(req.url)
-  const dayFilter = searchParams.get("day")?.toUpperCase()
-
   const format = searchParams.get("format")
 
   const draft = await prisma.draft.findFirst({
     where: { id, userId: user.id },
-    include: {
-      assignments: { include: { company: true } },
-      companies: true,
-    },
   })
 
   if (!draft)
     return NextResponse.json({ error: "Not found" }, { status: 404 })
 
-  // Format booth IDs: "G-14" → "G14", sorted by row then number
-  function formatBoothIds(boothIds: string[]) {
-    return [...boothIds]
-      .sort((a, b) => {
-        const [rowA, numA] = a.split("-")
-        const [rowB, numB] = b.split("-")
-        if (rowA !== rowB) return rowA.localeCompare(rowB)
-        return parseInt(numA) - parseInt(numB)
-      })
-      .map((id) => id.replace("-", ""))
-      .join(", ")
-  }
-
-  // Format days for display
-  function formatDays(day: string | null, companyDays: string[]) {
-    if (day === null) return "Wednesday Thursday"
-    if (day === "WEDNESDAY") return "Wednesday"
-    if (day === "THURSDAY") return "Thursday"
-    return companyDays.map((d) => d === "WEDNESDAY" ? "Wednesday" : "Thursday").join(" ")
-  }
-
-  // Placement report: every confirmed company for each day, whether or not it
-  // has booths yet, so the gaps are as visible as the placements.
-  if (format === "report") {
-    const assignmentByCompany = new Map(
-      draft.assignments.map((a) => [a.companyId, a])
-    )
-    const reportRows: Record<string, string | number>[] = []
-
-    for (const day of ["WEDNESDAY", "THURSDAY"] as const) {
-      const dayName = day === "WEDNESDAY" ? "Wednesday (Day 1)" : "Thursday (Day 2)"
-      const forDay = draft.companies
-        .filter(
-          (c) =>
-            !c.isPlaceholder &&
-            c.status === "CONFIRMED" &&
-            c.days.includes(day)
-        )
-        .map((c) => {
-          const a = assignmentByCompany.get(c.id)
-          const placed = a && (a.day === null || a.day === day)
-          return {
-            name: c.name,
-            sponsorship: c.sponsorship,
-            boothCount: c.boothCount,
-            booths: placed ? formatBoothIds(a.boothIds) : "",
-          }
-        })
-        .sort((x, y) => {
-          // Placed companies first, in floor order; unplaced trail alphabetically.
-          if (!!x.booths !== !!y.booths) return x.booths ? -1 : 1
-          if (x.booths && y.booths) return x.booths.localeCompare(y.booths)
-          return x.name.localeCompare(y.name)
-        })
-
-      for (const r of forDay) {
-        reportRows.push({
-          Day: dayName,
-          Company: r.name,
-          Package: r.sponsorship,
-          Booths: r.boothCount,
-          "Booth IDs": r.booths || "NOT PLACED",
-        })
-      }
-    }
-
-    const reportSheet = XLSX.utils.json_to_sheet(reportRows)
-    return new NextResponse(XLSX.utils.sheet_to_csv(reportSheet), {
-      headers: {
-        "Content-Type": "text/csv",
-        "Content-Disposition": `attachment; filename="${draft.name}-Placement-Report.csv"`,
-      },
-    })
-  }
-
-  const rows = draft.assignments
-    .map((a) => ({
-      "Name": a.company.name,
-      "DAYS REGISTERED": formatDays(a.day, a.company.days),
-      "ASSIGNMENT": formatBoothIds(a.boothIds),
-    }))
-    .sort((a, b) => {
-      // Sort by assignment (row letter first, then number)
-      const aFirst = a["ASSIGNMENT"].split(",")[0].trim()
-      const bFirst = b["ASSIGNMENT"].split(",")[0].trim()
-      const aRow = aFirst.match(/^([A-Q])/)?.[1] || ""
-      const bRow = bFirst.match(/^([A-Q])/)?.[1] || ""
-      if (aRow !== bRow) return aRow.localeCompare(bRow)
-      const aNum = parseInt(aFirst.slice(1)) || 0
-      const bNum = parseInt(bFirst.slice(1)) || 0
-      return aNum - bNum
-    })
+  // "report" lists every confirmed company per day, placed or not, so the gaps
+  // are as visible as the placements. Default stays the assignments-only CSV.
+  const isReport = format === "report"
+  const rows = isReport
+    ? await getPlacementReportRows(id)
+    : await getDraftExportRows(id)
 
   const sheet = XLSX.utils.json_to_sheet(rows)
   const csv = XLSX.utils.sheet_to_csv(sheet)
@@ -126,7 +35,9 @@ export async function GET(
   return new NextResponse(csv, {
     headers: {
       "Content-Type": "text/csv",
-      "Content-Disposition": `attachment; filename="${draft.name}-Assignments.csv"`,
+      "Content-Disposition": `attachment; filename="${draft.name}-${
+        isReport ? "Placement-Report" : "Assignments"
+      }.csv"`,
     },
   })
 }

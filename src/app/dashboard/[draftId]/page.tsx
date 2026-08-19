@@ -15,9 +15,11 @@ import {
 } from "@/components/ui/dropdown-menu"
 import dynamic from "next/dynamic"
 import { CompanySidebar } from "@/components/sidebar/company-sidebar"
+import { GoogleSheetsExportCard } from "@/components/sidebar/google-sheets-export-card"
 import { ImportDialog } from "@/components/sidebar/import-dialog"
 import { IndustryRangeDialog } from "@/components/sidebar/industry-range-dialog"
 import { CapacityDashboard } from "@/components/dashboard/capacity-dashboard"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
 const BoothMap = dynamic(
   () => import("@/components/map/booth-map").then((mod) => mod.BoothMap),
@@ -39,9 +41,14 @@ export default function EditorPage() {
   const [draftName, setDraftName] = useState("")
   const [industryRanges, setIndustryRanges] = useState<IndustryRangeConfig | null>(null)
   const [importOpen, setImportOpen] = useState(false)
+  const [googleSheetsOpen, setGoogleSheetsOpen] = useState(false)
   const [autoCompleteConfirmOpen, setAutoCompleteConfirmOpen] = useState(false)
   const [industryRangesOpen, setIndustryRangesOpen] = useState(false)
   const [view, setView] = useState<View>("map")
+  const [googleSheetUrl, setGoogleSheetUrl] = useState("")
+  const [googleWorksheetName, setGoogleWorksheetName] = useState("Assignments")
+  const [googleConnectionEmail, setGoogleConnectionEmail] = useState<string | null>(null)
+  const [googleBusy, setGoogleBusy] = useState(false)
 
   const {
     activeDay,
@@ -54,10 +61,12 @@ export default function EditorPage() {
   } = useMapStore()
 
   const loadDraft = useCallback(async () => {
-
     setCompanies([])
     setAssignments([])
     setDraftName("")
+    setGoogleSheetUrl("")
+    setGoogleWorksheetName("Assignments")
+    setGoogleConnectionEmail(null)
 
     const res = await apiFetch(`/api/drafts/${draftId}`)
     if (res.ok) {
@@ -69,6 +78,9 @@ export default function EditorPage() {
       setAssignments(draft.assignments)
       setCapacityPerDay(draft.capacityPerDay)
       setIndustryZones(draft.industryZones)
+      setGoogleSheetUrl(draft.googleSheetUrl ?? "")
+      setGoogleWorksheetName(draft.googleWorksheetName ?? "Assignments")
+      setGoogleConnectionEmail(draft.googleConnection?.email ?? null)
     } else {
       router.push("/dashboard")
     }
@@ -112,6 +124,83 @@ export default function EditorPage() {
       toast.success("Export downloaded")
     } else {
       toast.error("Export failed")
+    }
+  }
+
+  async function handleSaveGoogleSettings() {
+    const res = await apiFetch(`/api/drafts/${draftId}`, {
+      method: "PUT",
+      body: JSON.stringify({
+        googleSheetUrl,
+        googleWorksheetName,
+      }),
+    })
+
+    const data = await res.json().catch(() => ({}))
+    if (res.ok) {
+      toast.success("Google Sheet settings saved")
+    } else {
+      toast.error(data.error || "Unable to save Google Sheet settings")
+    }
+  }
+
+  async function handleConnectGoogle() {
+    setGoogleBusy(true)
+    const redirectTo = encodeURIComponent(window.location.pathname + window.location.search)
+    const res = await apiFetch(`/api/google/connect?redirectTo=${redirectTo}`)
+    const data = await res.json().catch(() => ({}))
+    if (res.ok && data.redirectUrl) {
+      window.location.href = data.redirectUrl
+    } else {
+      toast.error(data.error || "Unable to start Google authorization")
+      setGoogleBusy(false)
+    }
+  }
+
+  async function handleTestGoogleConnection() {
+    setGoogleBusy(true)
+    await handleSaveGoogleSettings()
+    const res = await apiFetch(`/api/drafts/${draftId}/google`, {
+      method: "POST",
+      body: JSON.stringify({ action: "test", spreadsheetUrl: googleSheetUrl, worksheetName: googleWorksheetName }),
+    })
+    const data = await res.json().catch(() => ({}))
+    setGoogleBusy(false)
+    if (res.ok) {
+      toast.success(data.message || "Google Sheets connection verified")
+      await loadDraft()
+    } else {
+      toast.error(data.error || "Unable to verify Google Sheets connection")
+    }
+  }
+
+  async function handleUpdateGoogleSheet() {
+    setGoogleBusy(true)
+    await handleSaveGoogleSettings()
+    const res = await apiFetch(`/api/drafts/${draftId}/google`, {
+      method: "POST",
+      body: JSON.stringify({ action: "update", spreadsheetUrl: googleSheetUrl, worksheetName: googleWorksheetName }),
+    })
+    const data = await res.json().catch(() => ({}))
+    setGoogleBusy(false)
+    if (res.ok) {
+      toast.success(data.message || "Google Sheet updated")
+      await loadDraft()
+    } else {
+      toast.error(data.error || "Unable to update Google Sheet")
+    }
+  }
+
+  async function handleDisconnectGoogle() {
+    setGoogleBusy(true)
+    const res = await apiFetch(`/api/google/disconnect`, { method: "POST" })
+    const data = await res.json().catch(() => ({}))
+    setGoogleBusy(false)
+    if (res.ok) {
+      toast.success("Google account disconnected")
+      setGoogleConnectionEmail(null)
+    } else {
+      toast.error(data.error || "Unable to disconnect Google account")
     }
   }
 
@@ -182,6 +271,14 @@ export default function EditorPage() {
           <Button
             variant="outline"
             size="sm"
+            onClick={() => setGoogleSheetsOpen(true)}
+          >
+            📗Google Sheets
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => setImportOpen(true)}
           >
             <Upload className="mr-1 h-4 w-4" />
@@ -218,8 +315,10 @@ export default function EditorPage() {
       {onMap ? (
         <div className="flex flex-1 overflow-hidden">
           <CompanySidebar />
-          <div className="flex-1 overflow-hidden bg-gray-100">
-            <BoothMap />
+          <div className="flex-1 overflow-hidden bg-gray-100 p-4">
+            <div className="h-full overflow-hidden rounded-lg border bg-white">
+              <BoothMap />
+            </div>
           </div>
         </div>
       ) : (
@@ -227,6 +326,27 @@ export default function EditorPage() {
           <CapacityDashboard />
         </div>
       )}
+
+      <Dialog open={googleSheetsOpen} onOpenChange={setGoogleSheetsOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Import Companies</DialogTitle>
+          </DialogHeader>
+          <GoogleSheetsExportCard
+            googleSheetUrl={googleSheetUrl}
+            googleWorksheetName={googleWorksheetName}
+            googleConnectionEmail={googleConnectionEmail}
+            googleBusy={googleBusy}
+            onGoogleSheetUrlChange={setGoogleSheetUrl}
+            onGoogleWorksheetNameChange={setGoogleWorksheetName}
+            onSaveGoogleSettings={handleSaveGoogleSettings}
+            onConnectGoogle={handleConnectGoogle}
+            onTestGoogleConnection={handleTestGoogleConnection}
+            onUpdateGoogleSheet={handleUpdateGoogleSheet}
+            onDisconnectGoogle={handleDisconnectGoogle}
+          />
+        </DialogContent>
+      </Dialog>
 
       {/* Import dialog */}
       <ImportDialog
@@ -250,7 +370,6 @@ export default function EditorPage() {
         initialRanges={industryRanges}
         onSaved={setIndustryRanges}
       />
-      
     </div>
   )
 }
