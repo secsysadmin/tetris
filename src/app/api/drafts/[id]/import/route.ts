@@ -2,72 +2,72 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { getAuthUser } from "@/lib/auth"
 import * as XLSX from "xlsx"
-import type { Day, Sponsorship, Industry } from "@/types"
+import type {
+  ImportPreviewItem,
+  ParsedRegistration,
+} from "@/types"
 import { SPONSORSHIP_CONFIG } from "@/lib/constants"
+import {
+  diffRegistration,
+  fieldsToRecord,
+  parseReport,
+  registrationKey,
+} from "@/lib/import-parser"
 
-const VALID_SPONSORSHIPS: Sponsorship[] = [
-  "MAROON",
-  "DIAMOND",
-  "GOLD",
-  "SILVER",
-  "BASIC",
-]
-
-const VALID_INDUSTRIES: Industry[] = [
-  "AEROSPACE",
-  "MECHANICAL",
-  "ENERGY",
-  "CHEMICALS",
-  "OIL",
-  "CIVIL",
-  "TECH", 
-  "SEMICONDUCTORS",
-  "OTHER",
-]
-
+type ImportMode = "merge" | "replace"
 
 /**
- * Parse the sponsorship column which contains tier + day info.
- * Formats:
- *   "Basic One-Day: Wednesday, January 28th [$1000.00]"
- *   "Gold Two-Day [$5500.00]"
- *   "Maroon Two-Day [$12500.00]"
- *   "Diamond One-Day: Thursday, January 29th [$4000.00]"
+ * Reads the request body in either shape:
+ *   - multipart/form-data with a `file` (plus optional `mode` / `preview`)
+ *   - JSON `{ text, mode, preview }` for a pasted report
  */
-function parseSponsorshipColumn(value: string): { sponsorship: Sponsorship; days: Day[] } | null {
-  const v = value.trim()
+async function readInput(req: NextRequest): Promise<
+  | { error: string }
+  | { records: ParsedRegistration[]; warnings: string[]; mode: ImportMode; preview: boolean }
+> {
+  const contentType = req.headers.get("content-type") || ""
 
-  // Extract the tier name (first word before "One-Day" or "Two-Day")
-  const tierMatch = v.match(/^(\w+)\s+(One-Day|Two-Day)/i)
-  if (!tierMatch) return null
+  if (contentType.includes("multipart/form-data")) {
+    const formData = await req.formData()
+    const file = formData.get("file") as File | null
+    if (!file) return { error: "No file provided" }
 
-  const tierRaw = tierMatch[1].toUpperCase()
-  if (!VALID_SPONSORSHIPS.includes(tierRaw as Sponsorship)) return null
-  const sponsorship = tierRaw as Sponsorship
+    const mode = (String(formData.get("mode") || "merge") as ImportMode) === "replace"
+      ? "replace"
+      : "merge"
+    const preview = String(formData.get("preview") || "") === "true"
+    const warnings: string[] = []
 
-  const isTwoDay = tierMatch[2].toLowerCase() === "two-day"
+    // Spreadsheets go through SheetJS; anything text-shaped goes through the
+    // report parser so block-format pastes saved as .txt still work.
+    if (/\.xlsx?$/i.test(file.name)) {
+      const buffer = Buffer.from(await file.arrayBuffer())
+      const workbook = XLSX.read(buffer, { type: "buffer" })
+      const sheet = workbook.Sheets[workbook.SheetNames[0]]
+      const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1 })
+      const records: ParsedRegistration[] = []
+      for (const row of rows) {
+        const r = fieldsToRecord(row, warnings)
+        if (r) records.push(r)
+      }
+      return { records, warnings, mode, preview }
+    }
 
-  if (isTwoDay) {
-    return { sponsorship, days: ["WEDNESDAY", "THURSDAY"] }
+    const parsed = parseReport(await file.text())
+    return { records: parsed.records, warnings: parsed.warnings, mode, preview }
   }
 
-  // One-Day: extract which day from the rest of the string
-  if (/wednesday/i.test(v)) return { sponsorship, days: ["WEDNESDAY"] }
-  if (/thursday/i.test(v)) return { sponsorship, days: ["THURSDAY"] }
-
-  // Fallback: one-day but can't determine which — default to both
-  return { sponsorship, days: ["WEDNESDAY", "THURSDAY"] }
-}
-
-function parseIndustry(value: string): Industry {
-  const v = value.trim()
-  const industryRaw = v.toUpperCase()
-
-  if (VALID_INDUSTRIES.includes(industryRaw as Industry)) {
-    return industryRaw as Industry
+  const body = await req.json().catch(() => ({}))
+  if (typeof body.text !== "string" || !body.text.trim()) {
+    return { error: "No report text provided" }
   }
-
-  return "OTHER" as Industry
+  const parsed = parseReport(body.text)
+  return {
+    records: parsed.records,
+    warnings: parsed.warnings,
+    mode: body.mode === "replace" ? "replace" : "merge",
+    preview: body.preview === true,
+  }
 }
 
 export async function POST(
@@ -79,106 +79,157 @@ export async function POST(
 
   const { id } = await params
 
-  const draft = await prisma.draft.findFirst({
-    where: { id, userId: user.id },
+  const draft = await prisma.draft.findFirst({ where: { id, userId: user.id } })
+  if (!draft) return NextResponse.json({ error: "Not found" }, { status: 404 })
+
+  const input = await readInput(req)
+  if ("error" in input) {
+    return NextResponse.json({ error: input.error }, { status: 400 })
+  }
+
+  const { records, warnings, mode, preview } = input
+
+  // Placeholders are blocked booths, not registrations — they never take part
+  // in an import diff and are never removed by replace mode.
+  const existingCompanies = await prisma.company.findMany({
+    where: { draftId: id, isPlaceholder: false },
   })
-  if (!draft)
-    return NextResponse.json({ error: "Not found" }, { status: 404 })
+  const existingByKey = new Map(
+    existingCompanies.map((c) => [registrationKey(c.name, c.registeredOn), c])
+  )
 
-  const formData = await req.formData()
-  const file = formData.get("file") as File | null
-
-  if (!file)
-    return NextResponse.json({ error: "No file provided" }, { status: 400 })
-
-  console.log("[import] Starting import for draft:", id)
-  console.log("[import] File:", file.name, `(${file.size} bytes)`)
-
-  const buffer = Buffer.from(await file.arrayBuffer())
-  const workbook = XLSX.read(buffer, { type: "buffer" })
-  const sheet = workbook.Sheets[workbook.SheetNames[0]]
-
-  // Parse as array-of-arrays to support headerless CSVs (positional columns)
-  const rows = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1 })
-
-  console.log("[import] Total rows:", rows.length)
-
-  const errors: string[] = []
-  const companies: { name: string; days: Day[]; sponsorship: Sponsorship; industry: Industry }[] =
-    []
-
-  // Detect if first row is a header (check if col B looks like a sponsorship value)
-  let startIdx = 0
-  if (rows.length > 0) {
-    const firstSponsor = String(rows[0][1] || "")
-    if (!parseSponsorshipColumn(firstSponsor)) {
-      console.log("[import] Header row detected, skipping:", rows[0].slice(0, 3).join(" | "))
-      startIdx = 1 // skip header row
-    }
+  // Last row wins if a report lists the same registration twice.
+  const incomingByKey = new Map<string, ParsedRegistration>()
+  for (const r of records) {
+    incomingByKey.set(registrationKey(r.name, r.registeredOn), r)
   }
 
-  for (let i = startIdx; i < rows.length; i++) {
-    const row = rows[i]
-    const rowNum = i + 1
+  const items: ImportPreviewItem[] = []
+  let createdCount = 0
+  let updatedCount = 0
+  let unchangedCount = 0
 
-    const name = String(row[0] || "").trim()
-    if (!name) {
-      console.log(`[import] Row ${rowNum}: skipped (no name)`)
-      errors.push(`Row ${rowNum}: missing company name`)
+  for (const [key, r] of incomingByKey) {
+    const existing = existingByKey.get(key)
+    if (!existing) {
+      createdCount++
+      items.push({ name: r.name, registeredOn: r.registeredOn, kind: "new", changes: [] })
       continue
     }
-
-    const sponsorshipRaw = String(row[1] || "").trim()
-    const parsed = parseSponsorshipColumn(sponsorshipRaw)
-
-    if (!parsed) {
-      console.error(`[import] Row ${rowNum}: failed to parse "${sponsorshipRaw}"`)
-      errors.push(`Row ${rowNum}: could not parse sponsorship "${sponsorshipRaw}"`)
-      continue
-    }
-
-    const industryRaw = String(row[2] || "").trim().toUpperCase()
-    const industryValue = parseIndustry(industryRaw)
-
-    companies.push({ name, days: parsed.days, sponsorship: parsed.sponsorship, industry: industryValue as Industry })
-  }
-
-  console.log("[import] Parsed", companies.length, "companies,", errors.length, "errors")
-
-  // Upsert companies
-  let created = 0
-  let updated = 0
-
-  for (const c of companies) {
-    const existing = await prisma.company.findFirst({
-      where: { name: c.name, draftId: id },
-    })
-
-    if (existing) {
-      await prisma.company.update({
-        where: { id: existing.id },
-        data: { days: c.days, sponsorship: c.sponsorship, industry: c.industry },
-      })
-      updated++
+    const changes = diffRegistration(existing, r)
+    if (changes.length) {
+      updatedCount++
+      items.push({ name: r.name, registeredOn: r.registeredOn, kind: "updated", changes })
     } else {
+      unchangedCount++
+    }
+  }
+
+  const removedCompanies =
+    mode === "replace"
+      ? existingCompanies.filter(
+          (c) => !incomingByKey.has(registrationKey(c.name, c.registeredOn))
+        )
+      : []
+
+  if (preview) {
+    return NextResponse.json({
+      parsed: incomingByKey.size,
+      created: createdCount,
+      updated: updatedCount,
+      unchanged: unchangedCount,
+      removed: removedCompanies.map((c) => c.name),
+      items,
+      warnings,
+    })
+  }
+
+  if (incomingByKey.size === 0) {
+    return NextResponse.json(
+      { error: "Nothing could be parsed from that report" },
+      { status: 400 }
+    )
+  }
+
+  // Companies whose assignment no longer makes sense after the import.
+  const invalidatedCompanyIds: string[] = []
+
+  for (const [key, r] of incomingByKey) {
+    const existing = existingByKey.get(key)
+
+    if (!existing) {
       await prisma.company.create({
         data: {
-          ...c,
+          name: r.name,
+          days: r.days,
+          sponsorship: r.sponsorship,
+          boothCount: r.boothCount,
+          industry: r.industry,
+          status: r.status,
+          contactName: r.contactName || null,
+          contactEmail: r.contactEmail || null,
+          contactPhone: r.contactPhone || null,
+          registeredOn: r.registeredOn || null,
           draftId: id,
-          boothCount: SPONSORSHIP_CONFIG[c.sponsorship].booths,
         },
       })
-      created++
+      continue
     }
+
+    // A hand-set booth count survives a re-import, since the report has no idea
+    // about special deals. It's dropped when the tier changes, because the old
+    // custom number almost certainly no longer applies.
+    const wasCustomized =
+      existing.boothCount !== SPONSORSHIP_CONFIG[existing.sponsorship].booths
+    const keepCustomCount =
+      wasCustomized && existing.sponsorship === r.sponsorship
+    const boothCount = keepCustomCount ? existing.boothCount : r.boothCount
+
+    if (boothCount !== existing.boothCount || r.status !== "CONFIRMED") {
+      invalidatedCompanyIds.push(existing.id)
+    }
+
+    await prisma.company.update({
+      where: { id: existing.id },
+      data: {
+        days: r.days,
+        sponsorship: r.sponsorship,
+        boothCount,
+        industry: r.industry,
+        status: r.status,
+        // Only overwrite contact details the report actually carried.
+        ...(r.contactName && { contactName: r.contactName }),
+        ...(r.contactEmail && { contactEmail: r.contactEmail }),
+        ...(r.contactPhone && { contactPhone: r.contactPhone }),
+      },
+    })
   }
 
-  console.log("[import] Done — created:", created, "updated:", updated, "errors:", errors.length)
+  if (removedCompanies.length) {
+    await prisma.company.deleteMany({
+      where: { id: { in: removedCompanies.map((c) => c.id) } },
+    })
+  }
+
+  // Drop placements that the new data invalidated: a company that is no longer
+  // confirmed can't hold booths, and a changed booth count no longer matches
+  // the booths it was given.
+  let droppedAssignments = 0
+  if (invalidatedCompanyIds.length) {
+    const result = await prisma.boothAssignment.deleteMany({
+      where: { draftId: id, companyId: { in: invalidatedCompanyIds } },
+    })
+    droppedAssignments = result.count
+  }
 
   return NextResponse.json({
     success: true,
-    created,
-    updated,
-    errors,
-    total: companies.length,
+    created: createdCount,
+    updated: updatedCount,
+    unchanged: unchangedCount,
+    removed: removedCompanies.length,
+    droppedAssignments,
+    errors: warnings,
+    total: incomingByKey.size,
   })
 }
