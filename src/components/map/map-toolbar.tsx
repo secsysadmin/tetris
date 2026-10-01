@@ -20,6 +20,8 @@ interface MapToolbarProps {
 export function MapToolbar({ onZoomIn, onZoomOut, onZoomFit }: MapToolbarProps) {
   const {
     activeDay,
+    rowCount,
+    saveRowCount,
     industryZones,
     zoneTool,
     blockMode,
@@ -41,6 +43,8 @@ export function MapToolbar({ onZoomIn, onZoomOut, onZoomFit }: MapToolbarProps) 
   const [confirmingClearZones, setConfirmingClearZones] = useState(false)
   const [confirmingClearBlocks, setConfirmingClearBlocks] = useState(false)
   const addInputRef = useRef<HTMLInputElement>(null)
+  const [pendingRowCount, setPendingRowCount] = useState<number | null>(null)
+  const [savingRowCount, setSavingRowCount] = useState(false)
 
   useEffect(() => {
     if (addingLabel) addInputRef.current?.focus()
@@ -71,6 +75,22 @@ export function MapToolbar({ onZoomIn, onZoomOut, onZoomFit }: MapToolbarProps) 
     }
     setLabelName("")
     setAddingLabel(false)
+  }
+
+  async function resizeRows(newRowCount: number) {
+    if (newRowCount < 1 || newRowCount > 17 || newRowCount === rowCount) return
+
+    setSavingRowCount(true)
+
+    try {
+      await saveRowCount(newRowCount)
+      setPendingRowCount(null)
+      toast.success(`Map resized to ${newRowCount} rows`)
+    } catch {
+      // saveRowCount already displays the error
+    } finally {
+      setSavingRowCount(false)
+    }
   }
 
   return (
@@ -105,6 +125,38 @@ export function MapToolbar({ onZoomIn, onZoomOut, onZoomFit }: MapToolbarProps) 
         </Button>
 
         <div className="flex items-center gap-1 rounded-md border bg-white/90 p-0.5 shadow-sm backdrop-blur">
+          <span className="px-2 text-xs text-muted-foreground">
+            Rows
+          </span>
+
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 w-7 p-0"
+            disabled={rowCount <= 1 || savingRowCount}
+            onClick={() => setPendingRowCount(rowCount - 1)}
+            title="Remove one row"
+          >
+            <Minus className="h-3.5 w-3.5" />
+          </Button>
+
+          <span className="min-w-6 text-center text-xs font-medium">
+            {rowCount}
+          </span>
+
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 w-7 p-0"
+            disabled={rowCount >= 17 || savingRowCount}
+            onClick={() => resizeRows(rowCount + 1)}
+            title="Add one row"
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+
+        <div className="flex items-center gap-1 rounded-md border bg-white/90 p-0.5 shadow-sm backdrop-blur">
           <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={onZoomOut} title="Zoom out">
             <Minus className="h-3.5 w-3.5" />
           </Button>
@@ -117,6 +169,35 @@ export function MapToolbar({ onZoomIn, onZoomOut, onZoomFit }: MapToolbarProps) 
           </Button>
         </div>
       </div>
+
+      {pendingRowCount !== null && (
+        <div className="pointer-events-auto flex items-center justify-end gap-2 rounded-lg border bg-white/95 px-3 py-2 shadow-sm backdrop-blur">
+          <span className="text-xs text-muted-foreground">
+            Reduce the map from {rowCount} to {pendingRowCount} rows?
+            Companies or blocked booths in the removed row will be unassigned.
+          </span>
+
+          <Button
+            size="sm"
+            variant="destructive"
+            className="h-7 text-xs"
+            disabled={savingRowCount}
+            onClick={() => resizeRows(pendingRowCount)}
+          >
+            Remove row
+          </Button>
+
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 text-xs"
+            disabled={savingRowCount}
+            onClick={() => setPendingRowCount(null)}
+          >
+            Cancel
+          </Button>
+        </div>
+      )}
 
       {industryZones.show && (
         <div className="pointer-events-auto flex flex-wrap items-center gap-2 rounded-lg border bg-white/95 px-2.5 py-2 shadow-sm backdrop-blur">

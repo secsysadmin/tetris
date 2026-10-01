@@ -81,6 +81,7 @@ export interface Draft {
   id: string
   name: string
   userId: string
+  rowCount: number
   companies: Company[]
   assignments: BoothAssignment[]
   industryRanges?: IndustryRangeConfig | null
