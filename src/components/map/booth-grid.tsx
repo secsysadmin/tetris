@@ -29,6 +29,7 @@ interface BoothGridProps {
 export function BoothGrid({ paintPreview }: BoothGridProps = {}) {
   const {
     booths,
+    rowCount,
     activeDay,
     hoveredBooths,
     hoveredValid,
@@ -86,13 +87,16 @@ export function BoothGrid({ paintPreview }: BoothGridProps = {}) {
     8 * (BOOTH_HEIGHT + BOOTH_GAP) -
     BOOTH_GAP / 2
 
-  const dims = getCanvasDimensions()
+  const dims = getCanvasDimensions(rowCount)
 
   // Compute row label positions
   const rowLabels = useMemo(() => {
     const labels: { row: string; x: number; colWidth: number }[] = []
     let currentX = CANVAS_PADDING
-    for (const row of ALL_ROWS) {
+
+    const activeRows = ALL_ROWS.slice(ALL_ROWS.length - rowCount)
+
+    for (const row of activeRows) {
       const isEdge = EDGE_ROWS.has(row)
       if (isEdge) {
         labels.push({ row, x: currentX, colWidth: BOOTH_WIDTH })
@@ -104,7 +108,7 @@ export function BoothGrid({ paintPreview }: BoothGridProps = {}) {
       }
     }
     return labels
-  }, [])
+  }, [rowCount])
 
   // Group assignments to find label positions for multi-booth companies
   const companyLabels = useMemo(() => {

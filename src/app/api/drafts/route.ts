@@ -43,12 +43,20 @@ export async function POST(req: NextRequest) {
   const user = await getAuthUser(req)
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const { name } = await req.json()
+  const { name, rowCount } = await req.json()
+
+  if (rowCount !== 11 && rowCount !== 17) {
+    return NextResponse.json(
+      { error: "Invalid career fair size" },
+      { status: 400 }
+    )
+  }
 
   const draft = await prisma.draft.create({
     data: {
       name: name || "Untitled Draft",
       userId: user.id,
+      rowCount,
     },
   })
 

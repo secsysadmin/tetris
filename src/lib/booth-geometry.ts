@@ -24,8 +24,8 @@ import {
  *
  * For edge rows (A, Q): only right column (Seg 2 top, Seg 1 bottom)
  */
-export function generateBoothLayout(): BoothDefinition[] {
-  const booths: BoothDefinition[] = []
+export function generateBoothLayout(rows: readonly string[] = ALL_ROWS): BoothDefinition[] {
+    const booths: BoothDefinition[] = []
 
   // Column width: one column is BOOTH_WIDTH
   // Middle row occupies 2 columns (left + right) with SEGMENT_SIDE_GAP between
@@ -33,7 +33,7 @@ export function generateBoothLayout(): BoothDefinition[] {
 
   let currentX = CANVAS_PADDING
 
-  for (const row of ALL_ROWS) {
+for (const row of rows) {
     const isEdge = EDGE_ROWS.has(row)
 
     if (isEdge) {
@@ -155,26 +155,43 @@ export function generateBoothLayout(): BoothDefinition[] {
   return booths
 }
 
-// Cached layout
-let _cachedLayout: BoothDefinition[] | null = null
-export function getBoothLayout(): BoothDefinition[] {
-  if (!_cachedLayout) {
-    _cachedLayout = generateBoothLayout()
+// Cached layouts by row count
+const _cachedLayouts = new Map<number, BoothDefinition[]>()
+
+export function getBoothLayout(rowCount: number = ALL_ROWS.length): BoothDefinition[] {
+  const safeRowCount = Math.max(1, Math.min(rowCount, ALL_ROWS.length))
+
+  if (!_cachedLayouts.has(safeRowCount)) {
+    const rows = ALL_ROWS.slice(ALL_ROWS.length - safeRowCount)
+    _cachedLayouts.set(safeRowCount, generateBoothLayout(rows))
   }
-  return _cachedLayout
+
+  return _cachedLayouts.get(safeRowCount)!
 }
 
-// Lookup map
-let _boothMap: Map<string, BoothDefinition> | null = null
-function getBoothMap(): Map<string, BoothDefinition> {
-  if (!_boothMap) {
-    _boothMap = new Map(getBoothLayout().map((b) => [b.id, b]))
+// Lookup maps by row count
+const _boothMaps = new Map<number, Map<string, BoothDefinition>>()
+
+function getBoothMap(
+  rowCount: number = ALL_ROWS.length
+): Map<string, BoothDefinition> {
+  const safeRowCount = Math.max(1, Math.min(rowCount, ALL_ROWS.length))
+
+  if (!_boothMaps.has(safeRowCount)) {
+    _boothMaps.set(
+      safeRowCount,
+      new Map(getBoothLayout(safeRowCount).map((b) => [b.id, b]))
+    )
   }
-  return _boothMap
+
+  return _boothMaps.get(safeRowCount)!
 }
 
-export function getBoothById(id: string): BoothDefinition | undefined {
-  return getBoothMap().get(id)
+export function getBoothById(
+  id: string,
+  rowCount: number = ALL_ROWS.length
+): BoothDefinition | undefined {
+  return getBoothMap(rowCount).get(id)
 }
 
 /**
@@ -183,9 +200,10 @@ export function getBoothById(id: string): BoothDefinition | undefined {
  */
 export function getBoothAt(
   canvasX: number,
-  canvasY: number
+  canvasY: number,
+  rowCount: number = ALL_ROWS.length
 ): BoothDefinition | undefined {
-  return getBoothLayout().find(
+  return getBoothLayout(rowCount).find(
     (b) =>
       canvasX >= b.x &&
       canvasX <= b.x + b.width &&
@@ -196,11 +214,12 @@ export function getBoothAt(
 
 export function getSegmentBooths(
   row: string,
-  segment: number
+  segment: number,
+  rowCount: number = ALL_ROWS.length
 ): BoothDefinition[] {
-  return getBoothLayout()
+  return getBoothLayout(rowCount)
     .filter((b) => b.row === row && b.segment === segment)
-    .sort((a, b) => a.y - b.y) // sorted top to bottom visually
+    .sort((a, b) => a.y - b.y)
 }
 
 /**
@@ -247,9 +266,10 @@ export function findValidPlacements(
   row: string,
   segment: number,
   count: number,
-  occupied: Set<string>
+  occupied: Set<string>,
+  rowCount: number = ALL_ROWS.length
 ): string[][] {
-  const segmentBooths = getSegmentBooths(row, segment)
+  const segmentBooths = getSegmentBooths(row, segment, rowCount)
   const results: string[][] = []
 
   for (let i = 0; i <= segmentBooths.length - count; i++) {
@@ -272,9 +292,10 @@ export function findBestPlacement(
   segment: number,
   count: number,
   targetY: number,
-  occupied: Set<string>
+  occupied: Set<string>,
+  rowCount: number = ALL_ROWS.length
 ): string[] | null {
-  const valid = findValidPlacements(row, segment, count, occupied)
+  const valid = findValidPlacements(row, segment, count, occupied, rowCount)
   if (valid.length === 0) return null
 
   // Find the group whose center is closest to targetY
@@ -282,8 +303,8 @@ export function findBestPlacement(
   let bestDist = Infinity
 
   for (const group of valid) {
-    const firstBooth = getBoothById(group[0])!
-    const lastBooth = getBoothById(group[group.length - 1])!
+    const firstBooth = getBoothById(group[0], rowCount)!
+    const lastBooth = getBoothById(group[group.length - 1], rowCount)!
     const centerY = (firstBooth.y + lastBooth.y + BOOTH_HEIGHT) / 2
     const dist = Math.abs(centerY - targetY)
     if (dist < bestDist) {
@@ -300,9 +321,10 @@ export function findBestPlacement(
  */
 export function getRowAndSegmentAt(
   canvasX: number,
-  canvasY: number
+  canvasY: number,
+  rowCount: number = ALL_ROWS.length
 ): { row: string; segment: number } | null {
-  const layout = getBoothLayout()
+  const layout = getBoothLayout(rowCount)
 
   // Group booths by row to find X ranges
   const rowBounds = new Map<
@@ -370,14 +392,18 @@ export function getRowAndSegmentAt(
 /**
  * Computes total canvas dimensions needed for the layout.
  */
-export function getCanvasDimensions(): { width: number; height: number } {
-  const layout = getBoothLayout()
+export function getCanvasDimensions(
+  rowCount: number = ALL_ROWS.length
+): { width: number; height: number } {
+  const layout = getBoothLayout(rowCount)
   let maxX = 0
   let maxY = 0
+
   for (const b of layout) {
     maxX = Math.max(maxX, b.x + b.width)
     maxY = Math.max(maxY, b.y + b.height)
   }
+
   return {
     width: maxX + CANVAS_PADDING,
     height: maxY + CANVAS_PADDING,

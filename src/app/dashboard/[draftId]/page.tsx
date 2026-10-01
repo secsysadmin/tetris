@@ -60,6 +60,7 @@ export default function EditorPage() {
     setAssignments,
     setCapacityPerDay,
     setIndustryZones,
+    setRowCount,
   } = useMapStore()
 
   const loadDraft = useCallback(async () => {
@@ -76,6 +77,7 @@ export default function EditorPage() {
       setDraftName(draft.name)
       setIndustryRanges(draft.industryRanges ?? {})
       setDraftId(draft.id)
+      setRowCount(draft.rowCount)
       setCompanies(draft.companies)
       setAssignments(draft.assignments)
       setCapacityPerDay(draft.capacityPerDay)
@@ -95,6 +97,7 @@ export default function EditorPage() {
     apiFetch,
     draftId,
     setDraftId,
+    setRowCount,
     setCompanies,
     setAssignments,
     setCapacityPerDay,
