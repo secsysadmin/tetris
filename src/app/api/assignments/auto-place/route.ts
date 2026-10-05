@@ -31,16 +31,18 @@ function getSegmentOrder(row: string): number[] {
 function findNextPlacement(
   count: number,
   occupied: Set<string>,
-  allowed: Set<string>
+  allowed: Set<string>,
+  rowCount: number
 ): string[] | null {
   if (allowed.size === 0) return null
 
   const candidates: string[][] = []
+  const activeRows = ALL_ROWS.slice(ALL_ROWS.length - rowCount)
 
-  for (const row of ALL_ROWS) {
+  for (const row of activeRows) {
     const segmentOrder = getSegmentOrder(row)
     for (const segment of segmentOrder) {
-      const segmentBooths = getSegmentBooths(row, segment)
+      const segmentBooths = getSegmentBooths(row, segment, rowCount)
       if (segmentBooths.length < count) continue
 
       for (let i = 0; i <= segmentBooths.length - count; i += 1) {
@@ -67,8 +69,8 @@ function normalizeBoothId(raw: string): string | null {
   return getBoothById(id) ? id : null
 }
 
-function expandIndustryRanges(rawRanges: unknown): Map<Industry, Set<string>> {
-  const layout = getBoothLayout()
+function expandIndustryRanges(rawRanges: unknown, rowCount: number): Map<Industry, Set<string>> {
+  const layout = getBoothLayout(rowCount)
   const rowIndex = new Map<string, number>(ALL_ROWS.map((row, idx) => [row, idx]))
   const rowNumbers = new Map<string, number[]>()
   for (const booth of layout) {
@@ -202,7 +204,7 @@ export async function POST(req: NextRequest) {
       company.days.includes(day)
   )
 
-  const industryRanges = expandIndustryRanges(draft.industryRanges)
+  const industryRanges = expandIndustryRanges(draft.industryRanges, draft.rowCount)
 
   const assignmentData: Array<{
     companyId: string
@@ -214,7 +216,7 @@ export async function POST(req: NextRequest) {
   for (const company of unassignedCompanies) {
     const boothCount = company.boothCount
     const allowed = industryRanges.get(company.industry) || new Set<string>()
-    const placement = findNextPlacement(boothCount, occupied, allowed)
+    const placement = findNextPlacement(boothCount, occupied, allowed, draft.rowCount)
     if (!placement) continue
 
     const assignmentDay = company.days.length === 2 ? null : day

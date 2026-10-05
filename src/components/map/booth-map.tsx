@@ -62,6 +62,7 @@ export function BoothMap() {
   const pendingDragEvent = useRef<{ x: number; y: number } | null>(null)
 
   const {
+    rowCount,
     setDraggedCompany,
     setHoveredBooths,
     assignCompany,
@@ -93,7 +94,7 @@ export function BoothMap() {
   const paintRafRef = useRef<number | null>(null)
   const zoneOpRef = useRef<ZoneOp | null>(null)
 
-  const canvasDims = getCanvasDimensions()
+  const canvasDims = getCanvasDimensions(rowCount)
 
   // Painting a block or drawing a zone owns the pointer, so panning is off.
   const pointerToolActive = blockMode || zoneTool !== null
@@ -285,7 +286,7 @@ export function BoothMap() {
     const canvasX = (coords.x - rect.left - positionRef.current.x) / scaleRef.current
     const canvasY = (coords.y - rect.top - positionRef.current.y) / scaleRef.current
 
-    const target = getRowAndSegmentAt(canvasX, canvasY)
+    const target = getRowAndSegmentAt(canvasX, canvasY, rowCount)
 
     if (!target) {
       if (lastHoverResultRef.current !== "") {
@@ -307,7 +308,8 @@ export function BoothMap() {
       target.segment,
       boothCount,
       canvasY,
-      occupiedCacheRef.current
+      occupiedCacheRef.current,
+      rowCount
     )
 
     // Only update store if result changed
@@ -343,7 +345,7 @@ export function BoothMap() {
         if (!company) return
 
         const canvasPos = pageToCanvas(coords.x, coords.y)
-        const target = getRowAndSegmentAt(canvasPos.x, canvasPos.y)
+        const target = getRowAndSegmentAt(canvasPos.x, canvasPos.y, rowCount)
 
         if (!target) {
           if (repoLastResult.current !== "") {
@@ -369,7 +371,8 @@ export function BoothMap() {
           target.segment,
           boothCount,
           canvasPos.y,
-          occupied
+          occupied,
+          rowCount
         )
 
         const resultKey = placement ? placement.join(",") : "none"
@@ -383,7 +386,7 @@ export function BoothMap() {
         }
       })
     },
-    [setHoveredBooths]
+    [setHoveredBooths, rowCount]
   )
 
   // Click to place during repositioning or new placement
@@ -510,7 +513,7 @@ export function BoothMap() {
       const state = useMapStore.getState()
 
       if (state.blockMode) {
-        const booth = getBoothAt(pos.x, pos.y)
+        const booth = getBoothAt(pos.x, pos.y, rowCount)
         if (!booth) return
         // Whether the stroke blocks or unblocks is decided by the booth it
         // started on, so dragging back over it doesn't flip-flop.
@@ -574,7 +577,7 @@ export function BoothMap() {
         h: 0,
       })
     },
-    []
+    [rowCount]
   )
 
   const handleStageMouseMove = useCallback(
@@ -598,7 +601,7 @@ export function BoothMap() {
         let added = false
         for (let i = 1; i <= steps; i++) {
           const t = i / steps
-          const booth = getBoothAt(paint.last.x + dx * t, paint.last.y + dy * t)
+          const booth = getBoothAt(paint.last.x + dx * t, paint.last.y + dy * t, rowCount)
           if (booth && !paint.ids.has(booth.id)) {
             paint.ids.add(booth.id)
             added = true
@@ -652,7 +655,7 @@ export function BoothMap() {
         h: Math.max(12, n.h),
       })
     },
-    []
+    [rowCount]
   )
 
   const handleDragLeave = useCallback(() => {
@@ -664,7 +667,7 @@ export function BoothMap() {
     lastHoverResultRef.current = ""
     pendingDragEvent.current = null
     setHoveredBooths([], true)
-  }, [setHoveredBooths])
+  }, [setHoveredBooths, rowCount])
 
   // Get selected company name for the action bar (targeted selector avoids rerender on unrelated company changes)
   const selectedCompanyData = useMapStore(

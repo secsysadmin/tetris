@@ -33,6 +33,7 @@ interface MapStore {
   companies: Company[]
   assignments: BoothAssignment[]
   booths: BoothDefinition[]
+  rowCount: number
   capacityPerDay: number
   industryZones: IndustryZoneConfig
 
@@ -60,6 +61,8 @@ interface MapStore {
   setDraftId: (id: string) => void
   setCompanies: (companies: Company[]) => void
   setAssignments: (assignments: BoothAssignment[]) => void
+  setRowCount: (rowCount: number) => void
+  saveRowCount: (rowCount: number) => Promise<void>
   addCompany: (company: Company) => void
   createCompany: (input: NewCompanyInput) => Promise<Company>
   updateCompany: (id: string, updates: Partial<Company>) => Promise<void>
@@ -149,10 +152,10 @@ export const useMapStore = create<MapStore>((set, get) => ({
   draftId: null,
   companies: [],
   assignments: [],
-  booths: getBoothLayout(),
+  rowCount: 17,
+  booths: getBoothLayout(17),
   capacityPerDay: DEFAULT_CAPACITY_PER_DAY,
   industryZones: EMPTY_ZONES,
-
   activeDay: "WEDNESDAY",
   draggedCompany: null,
   hoveredBooths: [],
@@ -176,7 +179,44 @@ export const useMapStore = create<MapStore>((set, get) => ({
   setDraftId: (id) => set({ draftId: id }),
   setCompanies: (companies) => set({ companies }),
   setAssignments: (assignments) => set({ assignments }),
+  setRowCount: (rowCount) => set({ rowCount, booths: getBoothLayout(rowCount),}),
+  saveRowCount: async (rowCount) => {
+    const { draftId, rowCount: currentRowCount } = get()
 
+    if (!draftId || rowCount === currentRowCount) return
+
+    try {
+      const res = await authFetch(`/api/drafts/${draftId}`, {
+        method: "PUT",
+        body: JSON.stringify({ rowCount }),
+      })
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || "Failed to save row count")
+      }
+
+      // Reload the draft because shrinking may have removed assignments
+      // and placeholder companies on the server.
+      const refreshRes = await authFetch(`/api/drafts/${draftId}`)
+
+      if (!refreshRes.ok) {
+        throw new Error("Row count saved, but failed to refresh the draft")
+      }
+
+      const draft = await refreshRes.json()
+
+      set({
+        rowCount: draft.rowCount,
+        booths: getBoothLayout(draft.rowCount),
+        companies: draft.companies,
+        assignments: draft.assignments,
+      })
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to save row count")
+      throw e
+    }
+  },
   addCompany: (company) =>
     set((state) => ({ companies: [...state.companies, company] })),
 

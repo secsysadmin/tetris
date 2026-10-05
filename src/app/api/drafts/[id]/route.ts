@@ -35,6 +35,11 @@ function normalizeBoothId(raw: string): string | null {
   return getBoothById(id) ? id : null
 }
 
+function getBoothRow(boothId: string): string | null {
+  const match = boothId.trim().toUpperCase().match(/^([A-Q])-/)
+  return match ? match[1] : null
+}
+
 function normalizeIndustryRanges(raw: unknown): {
   value?: IndustryRangeConfig | null
   error?: string
@@ -219,6 +224,7 @@ export async function PUT(
   const data: {
     name?: string
     capacityPerDay?: number
+    rowCount?: number
     industryRanges?: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput
     industryZones?: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput
     googleSheetUrl?: string | null
@@ -240,6 +246,19 @@ export async function PUT(
       )
     }
     data.capacityPerDay = capacity
+  }
+
+  if (body.rowCount !== undefined) {
+    const rowCount = Number(body.rowCount)
+
+    if (!Number.isInteger(rowCount) || rowCount < 1 || rowCount > ALL_ROWS.length) {
+      return NextResponse.json(
+        { error: `Row count must be between 1 and ${ALL_ROWS.length}` },
+        { status: 400 }
+      )
+    }
+
+    data.rowCount = rowCount
   }
 
   if (Object.prototype.hasOwnProperty.call(body, "industryRanges")) {
@@ -299,13 +318,63 @@ export async function PUT(
     return NextResponse.json({ error: "No updates provided" }, { status: 400 })
   }
 
-  const draft = await prisma.draft.updateMany({
+  const existingDraft = await prisma.draft.findFirst({
     where: { id, userId: user.id },
-    data,
   })
 
-  if (draft.count === 0)
+  if (!existingDraft) {
     return NextResponse.json({ error: "Not found" }, { status: 404 })
+  }
+
+  await prisma.$transaction(async (tx) => {
+    // If the map is shrinking, remove assignments that touch rows
+    // that will no longer exist.
+    if (data.rowCount !== undefined && data.rowCount < existingDraft.rowCount) {
+      const activeRows = new Set<string>(
+        ALL_ROWS.slice(ALL_ROWS.length - data.rowCount)
+      )
+
+      const assignments = await tx.boothAssignment.findMany({
+        where: { draftId: id },
+        include: { company: true },
+      })
+
+      const affectedAssignments = assignments.filter((assignment) =>
+        assignment.boothIds.some((boothId) => {
+          const row = getBoothRow(boothId)
+          return row !== null && !activeRows.has(row)
+        })
+      )
+
+      const placeholderCompanyIds = affectedAssignments
+        .filter((assignment) => assignment.company.isPlaceholder)
+        .map((assignment) => assignment.companyId)
+
+      const normalAssignmentIds = affectedAssignments
+        .filter((assignment) => !assignment.company.isPlaceholder)
+        .map((assignment) => assignment.id)
+
+      // Blocked booths are placeholder companies. Deleting the company
+      // also deletes its assignment because of the cascade relation.
+      if (placeholderCompanyIds.length > 0) {
+        await tx.company.deleteMany({
+          where: { id: { in: placeholderCompanyIds } },
+        })
+      }
+
+      // Real companies stay in the draft, but become unassigned.
+      if (normalAssignmentIds.length > 0) {
+        await tx.boothAssignment.deleteMany({
+          where: { id: { in: normalAssignmentIds } },
+        })
+      }
+    }
+
+    await tx.draft.update({
+      where: { id },
+      data,
+    })
+  })
 
   if (data.googleAutoSync === true || data.googleSpreadsheetId) {
     scheduleGoogleSheetSync(id)

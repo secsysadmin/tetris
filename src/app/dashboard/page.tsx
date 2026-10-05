@@ -44,6 +44,7 @@ export default function DashboardPage() {
   const router = useRouter()
   const [drafts, setDrafts] = useState<DraftSummary[]>([])
   const [newDraftName, setNewDraftName] = useState("")
+  const [newDraftSeason, setNewDraftSeason] = useState<"spring" | "fall" | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [renameId, setRenameId] = useState<string | null>(null)
   const [renameName, setRenameName] = useState("")
@@ -70,12 +71,24 @@ export default function DashboardPage() {
   }, [user]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function createDraft() {
+    if (!newDraftSeason) {
+      toast.error("Please select Spring or Fall")
+      return
+    }
+
+    const rowCount = newDraftSeason === "spring" ? 11 : 17 // Choosing Spring = 11 rows, Fall = 17 rows
+
     const res = await apiFetch("/api/drafts", {
       method: "POST",
-      body: JSON.stringify({ name: newDraftName || "Untitled Draft" }),
+      body: JSON.stringify({
+        name: newDraftName || "Untitled Draft",
+        rowCount,
+      }),
     })
+
     if (res.ok) {
       setNewDraftName("")
+      setNewDraftSeason(null)
       setDialogOpen(false)
       toast.success("Draft created")
       loadDrafts()
@@ -220,9 +233,35 @@ export default function DashboardPage() {
                   placeholder="Draft name"
                   value={newDraftName}
                   onChange={(e) => setNewDraftName(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && createDraft()}
                 />
-                <Button className="w-full" onClick={createDraft}>
+
+                <div className="space-y-2">
+                  <Label>Career Fair</Label>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      type="button"
+                      variant={newDraftSeason === "spring" ? "default" : "outline"}
+                      onClick={() => setNewDraftSeason("spring")}
+                    >
+                      Spring
+                    </Button>
+
+                    <Button
+                      type="button"
+                      variant={newDraftSeason === "fall" ? "default" : "outline"}
+                      onClick={() => setNewDraftSeason("fall")}
+                    >
+                      Fall
+                    </Button>
+                  </div>
+                </div>
+
+                <Button
+                  className="w-full"
+                  onClick={createDraft}
+                  disabled={!newDraftSeason}
+                >
                   Create
                 </Button>
               </div>

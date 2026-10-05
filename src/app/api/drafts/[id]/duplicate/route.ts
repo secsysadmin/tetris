@@ -24,6 +24,7 @@ export async function POST(
     data: {
       name: `${original.name} (Copy)`,
       userId: user.id,
+      rowCount: original.rowCount,
       companies: {
         create: original.companies.map((c) => ({
           name: c.name,
