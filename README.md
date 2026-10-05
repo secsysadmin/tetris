@@ -15,8 +15,12 @@ Career fair booth assignment tool. Import companies from a spreadsheet, drag the
    ```bash
    npx prisma migrate deploy
    ```
+4. Generate the Prisma Client for your machine
+   ```bash
+   npx prisma generate
+   ```
 
-4. Start the dev server:
+5. Start the dev server:
    ```bash
    npm run dev
    ```
@@ -44,13 +48,17 @@ Then `migrate status` should report "Database schema is up to date!".
 
 ## Useful Prisma Commands
 
+- Reads your schema.prisma file and generates a type-safe Prisma Client tailored specifically to your database structure. **Required anytime schema.prisma changes.**  
+   ```bash
+   npx prisma generate
+   ```
+
 - Opens a browser tab where you can see all your tables, add/delete rows, and filter data without writing any SQL.
    ```bash
    npx prisma studio
    ```
 
-- When you run this, Prisma compares your schema to the database and generates a .sql file in a timestamped folder inside the prisma/migrations folder. This folder then holds SQL files that show exactly how the database changed over time, that way a teammate can pull your code and run npx prisma migrate dev to get their local database updated with the exact same SQL steps you took. 
-- **Note: This may fail because it tries to create a shadow database using the SQL scripts in migrations folders to compare to actual database.**
+- Compares your schema to the database and generates a .sql file in a timestamped folder inside the prisma/migrations folder. This folder then holds SQL files that show exactly how the database changed over time, which allows npx prisma migrate dev update the database according to the exact steps. 
    ```bash
    npx prisma migrate dev --name {change name}
    ```
@@ -60,7 +68,7 @@ Then `migrate status` should report "Database schema is up to date!".
    npx prisma migrate deploy
    ```
 
-- Syncs the schema straight to the database without recording history. **Avoid this on any shared database.** It rewrites the database to match your `schema.prisma` exactly, which means it silently drops any table or column your branch doesn't declare — including a teammate's work-in-progress schema.
+- Syncs the schema straight to the database without recording history. **Avoid this on any shared database.** It rewrites the database to match your `schema.prisma` exactly, silently dropping any table or column your branch doesn't declare — including a teammate's work-in-progress schema.
    ```bash
    npx prisma db push
    ```

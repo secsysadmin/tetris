@@ -12,6 +12,9 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "Career Fair Booth Assignment Tool",
   description: "Manage career fair booth assignments with interactive floor maps",
+  icons: {
+    icon: "/sec_favicon.png",
+  },
 }
 
 export default function RootLayout({
